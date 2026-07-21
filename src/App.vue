@@ -41,7 +41,7 @@ const products: Product[] = [
     originalPrice: 79000,
     discount: 25,
     image:
-      'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?auto=format&fit=crop&w=800&q=85',
+      'https://images.unsplash.com/photo-1551488831-00ddcb6c6bd3?auto=format&fit=crop&w=1200&q=90',
     badge: 'BEST',
     rating: 4.9,
     reviews: 126,
@@ -54,7 +54,7 @@ const products: Product[] = [
     originalPrice: 47000,
     discount: 30,
     image:
-      'https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=800&q=85',
+      'https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=1200&q=90',
     badge: '주문폭주',
     rating: 4.8,
     reviews: 89,
@@ -67,7 +67,7 @@ const products: Product[] = [
     originalPrice: 52000,
     discount: 19,
     image:
-      'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=800&q=85',
+      'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=1200&q=90',
     rating: 4.9,
     reviews: 211,
   },
@@ -79,7 +79,7 @@ const products: Product[] = [
     originalPrice: 99000,
     discount: 19,
     image:
-      'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?auto=format&fit=crop&w=800&q=85',
+      'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?auto=format&fit=crop&w=1200&q=90',
     badge: 'NEW',
     rating: 4.7,
     reviews: 48,
@@ -92,7 +92,7 @@ const products: Product[] = [
     originalPrice: 46000,
     discount: 15,
     image:
-      'https://images.unsplash.com/photo-1559563458-527698bf5295?auto=format&fit=crop&w=800&q=85',
+      'https://images.unsplash.com/photo-1559563458-527698bf5295?auto=format&fit=crop&w=1200&q=90',
     rating: 4.8,
     reviews: 73,
   },
