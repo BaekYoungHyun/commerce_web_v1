@@ -157,14 +157,14 @@
   cursor: pointer;
 }
 .hero {
-  max-width: 1280px;
-  min-height: 590px;
+  max-width: 1440px;
+  min-height: 680px;
   margin: auto;
-  padding: 62px 30px 66px;
+  padding: 48px 32px 72px;
   display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
+  grid-template-columns: minmax(360px, 0.78fr) minmax(0, 1.22fr);
   align-items: center;
-  gap: 54px;
+  gap: 42px;
 }
 .eyebrow {
   font-size: 11px;
@@ -177,7 +177,7 @@
 }
 .hero h1 {
   font-family: 'Noto Sans KR', sans-serif;
-  font-size: clamp(44px, 5vw, 72px);
+  font-size: clamp(48px, 5.2vw, 78px);
   line-height: 1.13;
   letter-spacing: -0.065em;
   font-weight: 800;
@@ -212,13 +212,13 @@
   font-size: 20px;
 }
 .hero-visual {
-  height: 455px;
+  height: 560px;
   position: relative;
 }
 .hero-photo {
   position: absolute;
-  inset: 0 30px 0 50px;
-  border-radius: 190px 16px 190px 16px;
+  inset: 0 16px 0 26px;
+  border-radius: 240px 20px 240px 20px;
   background:
     linear-gradient(140deg, rgba(255, 107, 74, 0.05), rgba(31, 31, 27, 0.1)),
     url('https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1200&q=90')
@@ -314,9 +314,9 @@
   color: var(--muted);
 }
 .product-section {
-  max-width: 1280px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 100px 30px;
+  padding: 112px 32px;
 }
 .section-heading {
   display: flex;
@@ -357,17 +357,18 @@
 }
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 44px 20px;
 }
 .product-card {
   min-width: 0;
 }
 .image-wrap {
-  aspect-ratio: 0.76;
+  aspect-ratio: 0.8;
   overflow: hidden;
   position: relative;
   background: var(--cream);
+  border-radius: 4px;
 }
 .image-wrap img {
   width: 100%;
@@ -376,24 +377,25 @@
   transition: transform 0.45s ease;
 }
 .product-card:hover img {
-  transform: scale(1.04);
+  transform: scale(1.035);
 }
 .badge {
   position: absolute;
-  left: 11px;
-  top: 11px;
+  left: 14px;
+  top: 14px;
   background: var(--ink);
   color: white;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
-  padding: 5px 8px;
+  padding: 6px 9px;
+  border-radius: 2px;
 }
 .heart {
   position: absolute;
-  right: 10px;
-  top: 8px;
-  width: 34px;
-  height: 34px;
+  right: 13px;
+  top: 12px;
+  width: 40px;
+  height: 40px;
   border: 0;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.9);
@@ -405,14 +407,14 @@
 }
 .quick-cart {
   position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 10px;
-  height: 39px;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  height: 46px;
   border: 0;
   background: rgba(31, 31, 27, 0.92);
   color: white;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   opacity: 0;
@@ -425,15 +427,15 @@
   transform: none;
 }
 .product-info {
-  padding-top: 14px;
+  padding-top: 17px;
 }
 .shop-name {
   color: var(--muted);
-  font-size: 10px;
-  margin-bottom: 7px;
+  font-size: 11px;
+  margin-bottom: 8px;
 }
 .product-info h3 {
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.4;
   font-weight: 500;
   overflow: hidden;
@@ -443,8 +445,8 @@
 .price-line {
   display: flex;
   gap: 7px;
-  margin-top: 8px;
-  font-size: 14px;
+  margin-top: 10px;
+  font-size: 16px;
 }
 .price-line strong {
   color: var(--coral);
@@ -454,8 +456,8 @@
 }
 .rating {
   color: #3b3a36;
-  font-size: 10px;
-  margin-top: 8px;
+  font-size: 11px;
+  margin-top: 10px;
 }
 .rating span {
   color: #aaa;
@@ -571,13 +573,13 @@ footer small {
     padding: 0 4vw;
   }
   .hero-visual {
-    height: 440px;
+    height: 520px;
   }
   .benefits {
     margin: 0 24px;
   }
   .product-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -620,7 +622,7 @@ footer small {
     display: none;
   }
   .hero-visual {
-    height: 350px;
+    height: 410px;
   }
   .hero-photo {
     inset: 0 8px 0 24px;
@@ -663,6 +665,12 @@ footer small {
     opacity: 1;
     transform: none;
     height: 34px;
+  }
+  .product-info h3 {
+    font-size: 14px;
+  }
+  .price-line {
+    font-size: 15px;
   }
   .promo-banner {
     margin: 0 16px 70px;
