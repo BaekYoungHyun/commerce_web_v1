@@ -75,16 +75,16 @@ const mockCartApi: CartApi = {
 }
 
 const remoteCartApi: CartApi = {
-  getCart: () => apiRequest<CartItem[]>('/v1/cart'),
+  getCart: () => apiRequest<CartItem[]>('/cart'),
   addItem: (payload) =>
-    apiRequest<CartItem[]>('/v1/cart/items', { method: 'POST', body: JSON.stringify(payload) }),
+    apiRequest<CartItem[]>('/cart/items', { method: 'POST', body: JSON.stringify(payload) }),
   updateItem: (cartItemId, payload) =>
-    apiRequest<CartItem[]>(`/v1/cart/items/${cartItemId}`, {
+    apiRequest<CartItem[]>(`/cart/items/${cartItemId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
   removeItems: (cartItemIds) =>
-    apiRequest<CartItem[]>('/v1/cart/items', {
+    apiRequest<CartItem[]>('/cart/items', {
       method: 'DELETE',
       body: JSON.stringify({ cartItemIds }),
     }),

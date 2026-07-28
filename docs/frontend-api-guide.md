@@ -1,6 +1,6 @@
 # Commerce 프론트엔드 API 개발 가이드
 
-> 최종 갱신일: 2026-07-24  
+> 최종 갱신일: 2026-07-28  
 > 대상 API: Commerce Backend `/api/v1`  
 > 문서 상태: 현재 백엔드 구현 기준
 
@@ -420,7 +420,546 @@ try {
 }
 ```
 
-## 6. 토큰 저장 및 보안
+## 6. 카테고리 API
+
+### 6.1 카테고리 타입
+
+```ts
+export interface Category {
+  seq: number;
+  parentSeq: number | null;
+  depth: number;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+  children: Category[];
+}
+```
+
+### 6.2 카테고리 트리 목록
+
+```http
+GET /api/v1/categories?activeOnly=true
+Authorization: Bearer {accessToken}
+```
+
+| 파라미터 | 필수 | 기본값 | 설명 |
+|---|---:|---:|---|
+| `activeOnly` | N | `true` | `true`면 활성 카테고리만 조회 |
+
+응답은 루트 카테고리부터 시작하는 재귀 `children` 구조다.
+
+```json
+[
+  {
+    "seq": 1,
+    "parentSeq": null,
+    "depth": 1,
+    "code": "OUTER",
+    "name": "아우터",
+    "sortOrder": 1,
+    "isActive": true,
+    "children": [
+      {
+        "seq": 2,
+        "parentSeq": 1,
+        "depth": 2,
+        "code": "OUTER_COAT",
+        "name": "코트",
+        "sortOrder": 1,
+        "isActive": true,
+        "children": []
+      }
+    ]
+  }
+]
+```
+
+### 6.3 카테고리 등록
+
+```http
+POST /api/v1/categories
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+```ts
+export interface CategoryCreateRequest {
+  parentSeq: number | null;
+  code: string;
+  name: string;
+  sortOrder: number;
+  isActive: boolean;
+}
+```
+
+- 루트 카테고리는 `parentSeq: null`로 전송한다.
+- 하위 카테고리는 상위 카테고리의 `seq`를 `parentSeq`로 전송한다.
+- `depth`는 서버 DB 트리거가 자동 계산하므로 전송하지 않는다.
+- 성공 HTTP Status: `201`
+
+### 6.4 카테고리 수정
+
+```http
+PUT /api/v1/categories/{categorySeq}
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+요청 구조는 `CategoryCreateRequest`와 같다. `PUT` 방식이므로 전체 필드를 전송한다.
+
+- 부모 변경 시 해당 카테고리와 모든 하위 카테고리의 depth가 자동 재계산된다.
+- 자기 자신 또는 자신의 하위 카테고리를 부모로 지정할 수 없다.
+- 성공 HTTP Status: `200`
+
+### 6.5 카테고리 오류 처리
+
+| HTTP Status | 코드 | 상황 | 프론트 처리 |
+|---:|---|---|---|
+| `400` | `C001` | 필드 검증 실패 | `errors[].field`를 입력 컴포넌트에 연결 |
+| `404` | `CAT001` | 카테고리 또는 부모 없음 | 목록을 갱신하고 Not Found 안내 |
+| `409` | `CAT002` | 코드·동일 부모 이름·계층 충돌 | 입력값 또는 부모 선택 오류 표시 |
+
+## 7. 상품 API
+
+상품 API는 `products`, `product_images`, `product_options`, `product_variants`,
+`product_views`를 하나의 상품 aggregate로 조회·저장한다. 공통 `ApiResponse<T>` envelope가
+아닌 응답 DTO를 직접 반환한다.
+
+현재 구현으로 확인된 공통 계약:
+
+- Base path: `/api/v1/products`
+- 인증: 목록·상세·등록·수정 모두 필수. `Authorization: Bearer {accessToken}`을 전송한다.
+- 권한: 상품 경로에 별도 역할 제한은 없고 로그인 사용자라면 접근 가능하다.
+- 등록·수정 Content-Type: `application/json`. 이미지 파일이 아니라 업로드 완료된 URL을 전송한다.
+- 성공 응답: 공통 `ApiResponse`로 감싸지 않은 DTO 원문이다.
+- 금액: JSON number이며 프론트에서는 원 단위 정수 입력을 권장한다.
+- 상태 허용 목록: 아직 enum으로 확정되지 않았다. 현재 기본값은 상품 `DRAFT`, SKU `ACTIVE`다.
+
+### 7.1 상품 타입
+
+```ts
+export interface Product {
+  seq: number;
+  wholesaleStoreId: number;
+  categorySeq: number;
+  name: string;
+  description: string | null;
+  status: string;
+  minOrderQuantity: number;
+  createdAt: string;
+  updatedAt: string;
+  images: ProductImage[];
+  options: ProductOption[];
+  variants: ProductVariant[];
+  viewCount: number;
+}
+
+export interface ProductImage {
+  seq: number;
+  imageUrl: string;
+  imageType: string;
+  sortOrder: number;
+}
+
+export interface ProductOption {
+  seq: number;
+  optionName: string;
+  optionValue: string;
+  sortOrder: number;
+}
+
+export interface ProductVariant {
+  seq: number;
+  sku: string;
+  color: string | null;
+  size: string | null;
+  supplyPrice: number;
+  salePrice: number;
+  status: string;
+}
+
+export interface ProductPage {
+  content: Product[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+```
+
+날짜·시간 값은 PostgreSQL `timestamp with time zone`에 대응하는 ISO-8601 offset 문자열이다.
+
+```text
+2026-07-25T10:30:00+09:00
+```
+
+### 7.2 상품 목록
+
+```http
+GET /api/v1/products
+Authorization: Bearer {accessToken}
+```
+
+쿼리 파라미터:
+
+| 이름 | 필수 | 기본값 | 설명 |
+|---|---:|---:|---|
+| `page` | N | `0` | 0부터 시작하는 페이지 번호 |
+| `size` | N | `20` | 페이지 크기. 서버 최대값 `100` |
+| `wholesaleStoreId` | N |  | 도매상 식별자 일치 검색 |
+| `categorySeq` | N |  | 카테고리 식별자 일치 검색 |
+| `status` | N |  | 상품 상태 일치 검색 |
+| `name` | N |  | 상품명 대소문자 무시 부분 검색 |
+
+정렬은 `createdAt DESC`로 고정되어 있다.
+
+프론트 처리 기준:
+
+- `page < 0`은 `0`, `size < 1`은 `1`, `size > 100`은 `100`으로 서버에서 보정한다.
+- `status`는 완전 일치 검색이고 `name`은 대소문자를 무시한 부분 일치 검색이다.
+- 목록 항목에도 `images`, `options`, `variants`, `viewCount`가 모두 포함된다.
+- 이미지는 `sortOrder ASC, seq ASC`, 옵션은 `sortOrder ASC, seq ASC`, SKU는 `seq ASC` 순서다.
+- 대표 이미지는 `images[0]`을 사용하되 빈 배열에 대비해 fallback 이미지를 준비한다.
+
+```http
+GET /api/v1/products?page=0&size=20&status=DRAFT&name=셔츠
+```
+
+성공 응답:
+
+```json
+{
+  "content": [
+    {
+      "seq": 1,
+      "wholesaleStoreId": 10,
+      "categorySeq": 3,
+      "name": "기본 셔츠",
+      "description": "상품 상세 설명",
+      "status": "DRAFT",
+      "minOrderQuantity": 2,
+      "createdAt": "2026-07-25T10:30:00+09:00",
+      "updatedAt": "2026-07-25T10:30:00+09:00",
+      "images": [],
+      "options": [],
+      "variants": [],
+      "viewCount": 0
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+빈 목록은 오류가 아니라 `content: []`, `totalElements: 0`으로 처리한다.
+
+### 7.3 상품 상세
+
+```http
+GET /api/v1/products/{productSeq}
+Authorization: Bearer {accessToken}
+```
+
+- 성공 HTTP Status: `200`
+- 응답: `Product`
+- 없는 상품: HTTP `404`, 오류 코드 `P001`
+
+성공 응답 예시:
+
+```json
+{
+  "seq": 120,
+  "wholesaleStoreId": 1,
+  "categorySeq": 8,
+  "name": "SEED-017 슬림핏 티셔츠",
+  "description": "상품 상세 설명",
+  "status": "ACTIVE",
+  "minOrderQuantity": 2,
+  "createdAt": "2026-07-28T21:30:00+09:00",
+  "updatedAt": "2026-07-28T21:30:00+09:00",
+  "images": [
+    {"seq": 11, "imageUrl": "https://cdn.example.com/products/120/1.jpg", "imageType": "DETAIL", "sortOrder": 0}
+  ],
+  "options": [
+    {"seq": 21, "optionName": "색상", "optionValue": "블랙", "sortOrder": 0},
+    {"seq": 22, "optionName": "사이즈", "optionValue": "M", "sortOrder": 1}
+  ],
+  "variants": [
+    {"seq": 31, "sku": "SEED-017-BLK-M", "color": "블랙", "size": "M", "supplyPrice": 26000, "salePrice": 39000, "status": "ACTIVE"}
+  ],
+  "viewCount": 15
+}
+```
+
+상세 화면에서 조회수를 기록하려면 상세 조회 성공 후 `POST /{productSeq}/views`를 별도로 호출한다.
+
+### 7.4 상품 등록
+
+```http
+POST /api/v1/products
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+```ts
+export interface ProductCreateRequest {
+  wholesaleStoreId: number;
+  categorySeq: number;
+  name: string;
+  description?: string | null;
+  status?: string;
+  minOrderQuantity?: number;
+  images: ProductImageRequest[];
+  options: ProductOptionRequest[];
+  variants: ProductVariantRequest[];
+}
+
+export interface ProductImageRequest {
+  seq?: number; // 등록 시 금지, 수정 시 기존 행 유지에 사용
+  imageUrl: string;
+  imageType?: string;
+  sortOrder?: number;
+}
+
+export interface ProductOptionRequest {
+  seq?: number; // 등록 시 금지, 수정 시 기존 행 유지에 사용
+  optionName: string;
+  optionValue: string;
+  sortOrder?: number;
+}
+
+export interface ProductVariantRequest {
+  seq?: number; // 등록 시 금지, 수정 시 기존 행 유지에 사용
+  sku: string;
+  color?: string | null;
+  size?: string | null;
+  supplyPrice?: number;
+  salePrice?: number;
+  status?: string;
+}
+```
+
+```json
+{
+  "wholesaleStoreId": 10,
+  "categorySeq": 3,
+  "name": "기본 셔츠",
+  "description": "상품 상세 설명",
+  "status": "DRAFT",
+  "minOrderQuantity": 2,
+  "images": [
+    {"imageUrl": "https://cdn.example.com/products/1/main.jpg", "imageType": "DETAIL", "sortOrder": 0}
+  ],
+  "options": [
+    {"optionName": "색상", "optionValue": "블랙", "sortOrder": 0}
+  ],
+  "variants": [
+    {"sku": "SHIRT-BLACK-M", "color": "블랙", "size": "M", "supplyPrice": 10000, "salePrice": 15000}
+  ]
+}
+```
+
+필드 규칙:
+
+| 필드 | 필수 | 규칙 |
+|---|---:|---|
+| `wholesaleStoreId` | Y | 1 이상의 정수 |
+| `categorySeq` | Y | 1 이상의 정수 |
+| `name` | Y | 공백 불가, 최대 200자 |
+| `description` | N | 빈 문자열은 `null`로 정규화 |
+| `status` | N | 최대 30자, 생략 시 `DRAFT` |
+| `minOrderQuantity` | N | 1 이상, 생략 시 `1` |
+| `images` | Y | 빈 배열 허용. 현재 확인된 `imageType` 허용값은 `DETAIL`, `sortOrder` 기본값 `0` |
+| `options` | Y | 빈 배열 허용. 이름 50자, 값 100자 이하 |
+| `variants` | Y | 빈 배열 허용. `sku` 필수·80자 이하, 가격은 0 이상, `status` 기본값 `ACTIVE` |
+
+등록 시 하위 항목의 `seq`는 보내지 않는다.
+대표 이미지는 별도 `MAIN` 타입이 아니라 `sortOrder: 0`인 첫 이미지로 처리한다.
+
+- 성공 HTTP Status: `201`
+- 응답: 생성된 `Product`
+
+### 7.5 상품 수정
+
+```http
+PUT /api/v1/products/{productSeq}
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+```ts
+export interface ProductUpdateRequest {
+  wholesaleStoreId: number;
+  categorySeq: number;
+  name: string;
+  description?: string | null;
+  status?: string;
+  minOrderQuantity: number;
+  images: ProductImageRequest[];
+  options: ProductOptionRequest[];
+  variants: ProductVariantRequest[];
+}
+```
+
+`PUT` 방식이므로 상품 필드와 세 하위 배열을 모두 전송한다. 기존 하위 행은 응답에서 받은
+`seq`를 포함하면 같은 행을 갱신하고, `seq`가 없으면 새 행을 추가한다. 기존 응답에는 있었지만
+수정 요청 배열에서 빠진 행은 삭제된다. 다른 상품에 속한 하위 `seq`를 보내면 HTTP `400`,
+오류 코드 `C001`을 반환한다. 특히 사용 중인 variant를 제거하면 DB 참조 제약으로 실패할 수
+있으므로 판매 이력이 있는 variant는 삭제 대신 `status` 변경을 권장한다.
+
+수정 요청 예시:
+
+```json
+{
+  "wholesaleStoreId": 1,
+  "categorySeq": 8,
+  "name": "수정된 슬림핏 티셔츠",
+  "description": "수정된 상세 설명",
+  "status": "ACTIVE",
+  "minOrderQuantity": 3,
+  "images": [
+    {"seq": 11, "imageUrl": "https://cdn.example.com/products/120/1-new.jpg", "imageType": "DETAIL", "sortOrder": 0},
+    {"imageUrl": "https://cdn.example.com/products/120/2-new.jpg", "imageType": "DETAIL", "sortOrder": 1}
+  ],
+  "options": [
+    {"seq": 21, "optionName": "색상", "optionValue": "블랙", "sortOrder": 0},
+    {"optionName": "색상", "optionValue": "아이보리", "sortOrder": 1}
+  ],
+  "variants": [
+    {"seq": 31, "sku": "SEED-017-BLK-M", "color": "블랙", "size": "M", "supplyPrice": 27000, "salePrice": 41000, "status": "ACTIVE"},
+    {"sku": "SEED-017-IVR-M", "color": "아이보리", "size": "M", "supplyPrice": 27500, "salePrice": 42000, "status": "ACTIVE"}
+  ]
+}
+```
+
+위 예시에서 `seq: 11`, `21`, `31`은 기존 행을 수정하고 `seq`가 없는 행은 새로 추가한다.
+기존 상세 응답에 있던 하위 행을 요청에서 제외하면 삭제된다. 수정 폼 초기값에는 상세 응답의
+세 배열과 각 `seq`를 그대로 보관해야 한다.
+
+- 성공 HTTP Status: `200`
+- 응답: 수정된 `Product`
+- 없는 상품: HTTP `404`, 오류 코드 `P001`
+
+### 7.6 상품 조회 로그 등록
+
+```http
+POST /api/v1/products/{productSeq}/views
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+```ts
+export interface ProductViewCreateRequest {
+  userId?: number | null;
+}
+
+export interface ProductView {
+  seq: number;
+  userId: number | null;
+  productSeq: number;
+  viewedAt: string;
+}
+```
+
+- 엔드포인트 인증은 필수지만 `userId` 필드는 nullable이다. 현재 서버는 토큰 사용자와 요청 `userId`의 일치 여부를 검증하거나 자동 설정하지 않는다.
+- 성공 HTTP Status: `201`
+- 없는 상품은 HTTP `404`, 오류 코드 `P001`이다.
+- 등록된 로그 수는 상품 응답의 `viewCount`에 반영된다.
+
+### 7.7 상품 API 오류 응답
+
+현재 상품 모듈 오류 응답은 다음 구조다.
+
+```ts
+export interface ProductApiError {
+  timestamp: string;
+  code: string;
+  message: string;
+  errors: Array<{
+    field: string;
+    message: string;
+  }>;
+}
+```
+
+검증 실패 예시:
+
+```json
+{
+  "timestamp": "2026-07-25T10:31:00",
+  "code": "C001",
+  "message": "Invalid input.",
+  "errors": [
+    {
+      "field": "name",
+      "message": "must not be blank"
+    }
+  ]
+}
+```
+
+상품 등록·수정 화면 처리 기준:
+
+- HTTP `400`: `errors`를 각 입력 필드에 연결한다.
+- HTTP `401`: 토큰 재발급 후 한 번만 재시도한다.
+- HTTP `403`: 접근 권한 안내를 표시한다.
+- HTTP `404` + `P001`: 목록으로 이동하고 “상품이 존재하지 않습니다”를 안내한다.
+- HTTP `500`: 입력값을 유지하고 공통 서버 오류를 표시한다.
+
+현재 구현상 FK·CHECK·UNIQUE 같은 DB 제약 위반은 상품 전용 오류로 변환되지 않아 HTTP `500`,
+코드 `S001`이 될 수 있다. 이 경우 입력 상태를 유지하고 재시도 또는 관리자 문의를 제공한다.
+
+### 7.8 프론트 API 함수 예시
+
+```ts
+export interface ProductSearchParams {
+  page?: number;
+  size?: number;
+  wholesaleStoreId?: number;
+  categorySeq?: number;
+  status?: string;
+  name?: string;
+}
+
+export const productApi = {
+  list: (params: ProductSearchParams) =>
+    api.get<ProductPage>("/api/v1/products", { params }).then(({ data }) => data),
+
+  detail: (productSeq: number) =>
+    api.get<Product>(`/api/v1/products/${productSeq}`).then(({ data }) => data),
+
+  create: (request: ProductCreateRequest) =>
+    api.post<Product>("/api/v1/products", request).then(({ data }) => data),
+
+  update: (productSeq: number, request: ProductUpdateRequest) =>
+    api.put<Product>(`/api/v1/products/${productSeq}`, request).then(({ data }) => data),
+};
+```
+
+권장 화면 상태:
+
+```ts
+export type ProductListState = "loading" | "success" | "empty" | "error";
+
+export type ProductFormState =
+  | "idle"
+  | "submitting"
+  | "validation-error"
+  | "not-found"
+  | "success"
+  | "error";
+```
+
+- 등록·수정 요청 중에는 저장 버튼을 비활성화한다.
+- `400`의 `errors[].field`는 `images[0].imageUrl` 같은 중첩 경로가 올 수 있으므로 폼 경로로 연결한다.
+- 수정 완료 후에는 응답의 새 하위 `seq`와 정렬 결과를 폼 상태에 다시 반영한다.
+- `404/P001`이면 상세·수정 화면을 닫고 상품 목록을 갱신한다.
+
+## 8. 토큰 저장 및 보안
 
 - 비밀번호, access token을 콘솔이나 분석 이벤트에 기록하지 않는다.
 - 현재 access token은 응답 body로 전달된다.
@@ -428,7 +967,7 @@ try {
 - 로그아웃 시 토큰, 사용자 정보 및 인증 관련 캐시를 모두 제거한다.
 - API 요청 로그에 `Authorization` 헤더가 출력되지 않도록 한다.
 
-## 7. 권장 Pinia 상태
+## 9. 권장 Pinia 상태
 
 ```ts
 interface AuthState {
@@ -449,7 +988,7 @@ interface AuthState {
 - `logout()`
 - `clear()`
 
-## 8. 프론트 완료 기준
+## 10. 프론트 완료 기준
 
 ### 회원가입
 
@@ -466,7 +1005,15 @@ interface AuthState {
 - 재발급 실패 시 인증 상태를 초기화하고 로그인 화면으로 이동한다.
 - 로그아웃은 API 실패 여부와 관계없이 로컬 인증 상태를 제거한다.
 
-## 9. 현재 확인이 필요한 정책
+### 상품
+
+- 목록의 로딩·빈 결과·오류 상태를 분리한다.
+- 검색 조건 변경 시 페이지를 `0`으로 초기화한다.
+- 등록·수정 요청 중 저장 버튼을 비활성화한다.
+- 서버 검증 오류의 `errors[].field`를 입력 컴포넌트에 연결한다.
+- 수정 화면 진입 시 상품 상세를 다시 조회한다.
+
+## 11. 현재 확인이 필요한 정책
 
 다음 항목은 현재 코드에 완전한 계약이 없으므로 프론트에서 임의로 확정하지 않는다.
 
@@ -477,10 +1024,16 @@ interface AuthState {
 5. access token의 최종 저장 방식
 6. 일반 오류 응답 envelope 단일화 여부
 7. `REQUIRED_DATA_NOT_FOUND`의 HTTP Status를 `404`로 유지할지 여부
+8. 상품 `status`의 전체 허용값과 상태 전이 규칙
+9. 도매상·카테고리 존재 여부 및 접근 권한 검증 정책
+10. 상품 API와 기존 사용자 API의 성공·오류 envelope 단일화 여부
 
-## 10. 변경 이력
+## 12. 변경 이력
 
 | 날짜 | 변경 내용 |
 |---|---|
+| 2026-07-27 | 상품 참조 식별자를 `productId` / `product_id`에서 `productSeq` / `product_seq`로 변경 |
+| 2026-07-27 | 카테고리 트리 목록·등록·수정 API 계약 추가 |
+| 2026-07-27 | 상품 카테고리 필드와 DB 컬럼을 `categorySeq` / `category_seq`로 변경 |
+| 2026-07-25 | 상품 목록·상세·등록·수정 API 계약 및 상태별 처리 기준 추가 |
 | 2026-07-24 | 최초 작성. 회원가입, 로그인, 사용자 조회, 토큰 재발급, 로그아웃 계약 정리 |
-
