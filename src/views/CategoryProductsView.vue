@@ -1,46 +1,69 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
-import { categories } from '../data/categories'
-import { products } from '../data/products'
+import { useAuthStore } from '../stores/auth'
+import { useCategoriesStore } from '../stores/categories'
+import { useCatalogProductsStore } from '../stores/catalogProducts'
+import CatalogProductCard from '../components/CatalogProductCard.vue'
+import type { ApiCategory } from '../types/category'
 
 const route = useRoute()
+const authStore = useAuthStore()
+const categoriesStore = useCategoriesStore()
+const catalogStore = useCatalogProductsStore()
+const { products, pageData, loading, error } = storeToRefs(catalogStore)
 const keyword = ref('')
-const sort = ref('recommended')
+const sort = ref('newest')
 const categoryName = computed(() => String(route.params.category))
-const category = computed(() => categories.find((item) => item.name === categoryName.value))
-const formatPrice = (value: number) => new Intl.NumberFormat('ko-KR').format(value)
-
-const filteredProducts = computed(() => {
-  const query = keyword.value.trim().toLowerCase()
-  const list = products.filter((product) => product.category === categoryName.value && (!query || `${product.name} ${product.supplier}`.toLowerCase().includes(query)))
-  if (sort.value === 'lowPrice') return [...list].sort((a, b) => a.price - b.price)
-  if (sort.value === 'highMargin') return [...list].sort((a, b) => (b.retailPrice - b.price) / b.retailPrice - (a.retailPrice - a.price) / a.retailPrice)
-  return list
+const categorySeq = computed(() => {
+  const querySeq = Number(route.query.categorySeq)
+  if (Number.isInteger(querySeq) && querySeq > 0) return querySeq
+  return categoriesStore.options.find((category) => category.name === categoryName.value)?.seq ?? null
 })
+const categoryLabel = computed(() => categorySeq.value ? categoriesStore.nameOf(categorySeq.value) : categoryName.value)
+function containsCategory(category: ApiCategory, seq: number): boolean {
+  return category.seq === seq || category.children.some((child) => containsCategory(child, seq))
+}
+const selectedRootCategory = computed(() => {
+  if (!categorySeq.value) return null
+  return categoriesStore.categories.find((category) => containsCategory(category, categorySeq.value!)) ?? null
+})
+const secondDepthCategories = computed(() => selectedRootCategory.value?.children ?? [])
+const sortedProducts = computed(() => {
+  if (sort.value === 'lowPrice') return [...products.value].sort((a, b) => (a.variants[0]?.supplyPrice ?? 0) - (b.variants[0]?.supplyPrice ?? 0))
+  if (sort.value === 'highMargin') return [...products.value].sort((a, b) => {
+    const av = a.variants[0]; const bv = b.variants[0]
+    const am = av?.salePrice ? (av.salePrice - av.supplyPrice) / av.salePrice : 0
+    const bm = bv?.salePrice ? (bv.salePrice - bv.supplyPrice) / bv.salePrice : 0
+    return bm - am
+  })
+  return products.value
+})
+
+async function load(page = 0) {
+  if (!authStore.accessToken || !categorySeq.value) return
+  await catalogStore.fetchProducts({ page, size: 20, categorySeq: categorySeq.value, name: keyword.value.trim() || undefined }).catch(() => undefined)
+}
+
+watch([() => authStore.accessToken, categoryName, () => route.query.categorySeq], async ([token]) => {
+  if (!token) return
+  await categoriesStore.fetchCategories().catch(() => undefined)
+  await load(0)
+}, { immediate: true })
 </script>
 
 <template>
-  <main v-if="category" class="category-products-page">
-    <nav class="breadcrumbs"><RouterLink to="/categories">카테고리</RouterLink><span>›</span><strong>{{ category.name }}</strong></nav>
-    <header class="category-list-heading" :style="{ backgroundColor: category.tone }">
-      <div><p>{{ category.english }}</p><h1>{{ category.name }}</h1><span>{{ category.description }}</span></div>
-      <strong>{{ filteredProducts.length }}<small> PRODUCTS</small></strong>
-    </header>
-    <nav class="category-mini-nav" aria-label="상품 카테고리">
-      <RouterLink v-for="item in categories" :key="item.name" :to="`/categories/${item.name}`" :class="{ active: item.name === category.name }">{{ item.name }}</RouterLink>
-    </nav>
-    <div class="list-toolbar">
-      <label class="inline-search"><span>⌕</span><input v-model="keyword" placeholder="이 카테고리에서 검색" /></label>
-      <select v-model="sort" aria-label="정렬"><option value="recommended">추천순</option><option value="lowPrice">낮은 공급가순</option><option value="highMargin">높은 마진순</option></select>
-    </div>
-    <section v-if="filteredProducts.length" class="product-grid category-grid">
-      <article v-for="product in filteredProducts" :key="product.id" class="product-card">
-        <RouterLink class="image-wrap product-image-link" :to="`/products/${product.id}`"><img :src="product.image" :alt="product.name" /><span v-if="product.badge" class="badge">{{ product.badge }}</span></RouterLink>
-        <div class="product-info"><p class="shop-name">{{ product.supplier }} <span class="verified">사업자 인증</span></p><h3><RouterLink :to="`/products/${product.id}`">{{ product.name }}</RouterLink></h3><div class="price-line"><strong>공급가</strong><b>{{ formatPrice(product.price) }}원</b></div><p class="retail-price">권장 판매가 {{ formatPrice(product.retailPrice) }}원</p><div class="trade-meta"><span>최소 {{ product.minOrder }}개</span><span>{{ product.delivery }}</span></div></div>
-      </article>
-    </section>
-    <div v-else class="empty-state"><strong>등록된 상품이 없습니다.</strong><p>새로운 도매 상품을 준비하고 있습니다.</p></div>
+  <main class="category-products-page catalog-full-page">
+    <nav class="breadcrumbs"><RouterLink to="/">홈</RouterLink><span>›</span><strong>{{ categoryLabel }}</strong></nav>
+    <header class="catalog-list-heading"><div><p>WHOLESALE CATEGORY</p><h1>{{ categoryName }}</h1><span>사업자 셀러를 위해 엄선한 {{ categoryLabel }} 상품입니다.</span></div><strong>{{ pageData.totalElements.toLocaleString() }}<small> PRODUCTS</small></strong></header>
+    <nav v-if="secondDepthCategories.length" class="category-mini-nav api-category-mini" :aria-label="`${selectedRootCategory?.name} 2뎁스 카테고리`"><RouterLink v-for="item in secondDepthCategories" :key="item.seq" :to="{ path: `/categories/${encodeURIComponent(item.name)}`, query: { categorySeq: item.seq } }" :class="{ active: item.seq === categorySeq }">{{ item.name }}</RouterLink></nav>
+    <section class="catalog-list-toolbar"><div><strong>{{ categoryLabel }}</strong><span>총 {{ pageData.totalElements.toLocaleString() }}개</span></div><div><label class="inline-search"><span>⌕</span><input v-model="keyword" placeholder="상품명 검색" @keyup.enter="load(0)" /></label><select v-model="sort" aria-label="정렬"><option value="newest">최신 등록순</option><option value="lowPrice">낮은 공급가순</option><option value="highMargin">높은 예상 마진순</option></select></div></section>
+    <section v-if="!authStore.accessToken" class="catalog-api-state"><strong>사업자 로그인 후 상품을 확인할 수 있습니다.</strong><RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">로그인하기 →</RouterLink></section>
+    <section v-else-if="loading" class="catalog-api-state"><strong>상품을 불러오는 중입니다.</strong></section>
+    <section v-else-if="error" class="catalog-api-state"><strong>{{ error }}</strong><button type="button" @click="load(pageData.page)">다시 시도</button></section>
+    <section v-else-if="sortedProducts.length" class="catalog-api-grid catalog-list-grid"><CatalogProductCard v-for="(product, index) in sortedProducts" :key="product.seq" :product="product" :rank="pageData.page * pageData.size + index + 1" /></section>
+    <section v-else class="catalog-api-state"><strong>등록된 상품이 없습니다.</strong><p>새로운 도매 상품을 준비하고 있습니다.</p></section>
+    <div v-if="pageData.totalPages > 1" class="catalog-api-pagination"><button type="button" :disabled="pageData.page === 0 || loading" @click="load(pageData.page - 1)">이전</button><span>{{ pageData.page + 1 }} / {{ pageData.totalPages }}</span><button type="button" :disabled="pageData.page + 1 >= pageData.totalPages || loading" @click="load(pageData.page + 1)">다음</button></div>
   </main>
-  <main v-else class="not-found"><strong>카테고리를 찾을 수 없습니다.</strong><RouterLink to="/categories">카테고리로 돌아가기</RouterLink></main>
 </template>

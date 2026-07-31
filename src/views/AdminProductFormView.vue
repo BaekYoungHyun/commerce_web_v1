@@ -4,12 +4,16 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../services/httpClient'
 import { useAdminProductsStore } from '../stores/adminProducts'
+import { useCategoriesStore } from '../stores/categories'
 import type { AdminProductImageRequest, AdminProductOptionRequest, AdminProductVariantRequest } from '../types/adminProduct'
+import { productStatuses, skuStatuses } from '../data/productStatuses'
 
 const route = useRoute()
 const router = useRouter()
 const store = useAdminProductsStore()
+const categoriesStore = useCategoriesStore()
 const { saving, loading, fieldErrors } = storeToRefs(store)
+const { options: categoryOptions, loading: categoriesLoading, error: categoriesError } = storeToRefs(categoriesStore)
 const productId = computed(() => Number(route.params.id))
 const isEditing = computed(() => route.name === 'supplier-admin-product-edit')
 const submitError = ref('')
@@ -30,8 +34,9 @@ const addOption = () => form.options.push({ optionName: '', optionValue: '', sor
 const addVariant = () => form.variants.push({ sku: '', color: null, size: null, supplyPrice: 0, salePrice: 0, status: 'ACTIVE' })
 
 async function loadForEdit() {
-  if (!isEditing.value) return
   try {
+    await categoriesStore.fetchCategories()
+    if (!isEditing.value) return
     const product = await store.fetchProduct(productId.value)
     Object.assign(form, {
       wholesaleStoreId: product.wholesaleStoreId,
@@ -88,11 +93,11 @@ onMounted(loadForEdit)
       <section class="admin-form-section">
         <div class="admin-form-section-heading"><div><strong>상품 기본 정보</strong><span>도매상, 카테고리와 상품 노출 정보를 설정합니다.</span></div><b>01</b></div>
         <div class="admin-full-form-grid">
-          <label>도매상 ID <em>필수</em><input v-model.number="form.wholesaleStoreId" required min="1" type="number" /><small v-if="fieldErrors.wholesaleStoreId" class="field-error">{{ fieldErrors.wholesaleStoreId }}</small></label>
-          <label>카테고리 ID <em>필수</em><input v-model.number="form.categorySeq" required min="1" type="number" /><small v-if="fieldErrors.categorySeq" class="field-error">{{ fieldErrors.categorySeq }}</small></label>
-          <label class="wide">상품명 <em>필수</em><input v-model="form.name" required maxlength="200" placeholder="상품명을 입력하세요" /><small v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</small></label>
-          <label>상품 상태<input v-model="form.status" maxlength="30" placeholder="DRAFT" /><small v-if="fieldErrors.status" class="field-error">{{ fieldErrors.status }}</small><small>허용 상태가 확정되지 않아 서버 값을 그대로 사용합니다.</small></label>
-          <label>최소 주문 수량 <em>필수</em><div class="admin-input-unit"><input v-model.number="form.minOrderQuantity" required min="1" type="number" /><span>개</span></div><small v-if="fieldErrors.minOrderQuantity" class="field-error">{{ fieldErrors.minOrderQuantity }}</small></label>
+          <label><span class="form-label-title">도매상 ID <em>필수</em></span><input v-model.number="form.wholesaleStoreId" required min="1" type="number" /><small v-if="fieldErrors.wholesaleStoreId" class="field-error">{{ fieldErrors.wholesaleStoreId }}</small></label>
+          <label><span class="form-label-title">카테고리 <em>필수</em></span><select v-model="form.categorySeq" required :disabled="categoriesLoading"><option :value="null" disabled>{{ categoriesLoading ? '카테고리를 불러오는 중...' : '카테고리를 선택하세요' }}</option><option v-for="category in categoryOptions" :key="category.seq" :value="category.seq">{{ category.label }}</option></select><small v-if="fieldErrors.categorySeq" class="field-error">{{ fieldErrors.categorySeq }}</small><small v-if="categoriesError" class="field-error">{{ categoriesError }}</small></label>
+          <label class="wide"><span class="form-label-title">상품명 <em>필수</em></span><input v-model="form.name" required maxlength="200" placeholder="상품명을 입력하세요" /><small v-if="fieldErrors.name" class="field-error">{{ fieldErrors.name }}</small></label>
+          <label>상품 상태<select v-model="form.status"><option v-if="!productStatuses.some((item) => item.value === form.status)" :value="form.status">{{ form.status }}</option><option v-for="item in productStatuses" :key="item.value" :value="item.value">{{ item.label }} ({{ item.value }})</option></select><small v-if="fieldErrors.status" class="field-error">{{ fieldErrors.status }}</small></label>
+          <label><span class="form-label-title">최소 주문 수량 <em>필수</em></span><div class="admin-input-unit"><input v-model.number="form.minOrderQuantity" required min="1" type="number" /><span>개</span></div><small v-if="fieldErrors.minOrderQuantity" class="field-error">{{ fieldErrors.minOrderQuantity }}</small></label>
         </div>
       </section>
       <section class="admin-form-section">
@@ -101,23 +106,27 @@ onMounted(loadForEdit)
       </section>
       <section class="admin-form-section">
         <div class="admin-form-section-heading"><div><strong>이미지</strong><span>업로드가 완료된 URL을 순서대로 입력합니다.</span></div><button type="button" class="admin-reset-button" @click="addImage">+ 이미지</button></div>
-        <div v-for="(image, index) in form.images" :key="image.seq ?? `image-${index}`" class="admin-full-form-grid">
-          <label class="wide">이미지 URL <em>필수</em><input v-model="image.imageUrl" required type="url" /><small v-if="fieldErrors[`images[${index}].imageUrl`]" class="field-error">{{ fieldErrors[`images[${index}].imageUrl`] }}</small></label>
-          <label>이미지 타입<input v-model="image.imageType" maxlength="30" /></label><label>정렬 순서<input v-model.number="image.sortOrder" min="0" type="number" /></label><button type="button" class="admin-reset-button" @click="form.images.splice(index, 1)">삭제</button>
+        <div v-if="form.images.length" class="product-repeat-header image-row" aria-hidden="true"><span>미리보기</span><span>이미지 URL <em>필수</em></span><span>타입</span><span>순서</span><span></span></div>
+        <div v-for="(image, index) in form.images" :key="image.seq ?? `image-${index}`" class="product-repeat-row image-row">
+          <div class="product-row-preview"><img v-if="image.imageUrl" :src="image.imageUrl" alt="" /><span v-else>NO IMAGE</span></div>
+          <label><span>이미지 URL <em>필수</em></span><input v-model="image.imageUrl" required type="url" :aria-label="`이미지 ${index + 1} URL`" /><small v-if="fieldErrors[`images[${index}].imageUrl`]" class="field-error">{{ fieldErrors[`images[${index}].imageUrl`] }}</small></label>
+          <label><span>타입</span><input v-model="image.imageType" maxlength="30" :aria-label="`이미지 ${index + 1} 타입`" /></label><label><span>순서</span><input v-model.number="image.sortOrder" min="0" type="number" :aria-label="`이미지 ${index + 1} 정렬 순서`" /></label><button type="button" class="product-row-delete" @click="form.images.splice(index, 1)">삭제</button>
         </div>
         <p v-if="!form.images.length" class="admin-api-note">이미지는 선택 사항이며 빈 배열로 등록할 수 있습니다.</p>
       </section>
       <section class="admin-form-section">
         <div class="admin-form-section-heading"><div><strong>옵션</strong><span>상품 선택에 사용할 옵션 이름과 값을 입력합니다.</span></div><button type="button" class="admin-reset-button" @click="addOption">+ 옵션</button></div>
-        <div v-for="(option, index) in form.options" :key="option.seq ?? `option-${index}`" class="admin-full-form-grid">
-          <label>옵션명 <em>필수</em><input v-model="option.optionName" required maxlength="50" /></label><label>옵션값 <em>필수</em><input v-model="option.optionValue" required maxlength="100" /></label><label>정렬 순서<input v-model.number="option.sortOrder" min="0" type="number" /></label><button type="button" class="admin-reset-button" @click="form.options.splice(index, 1)">삭제</button>
+        <div v-if="form.options.length" class="product-repeat-header option-row" aria-hidden="true"><span>옵션명 <em>필수</em></span><span>옵션값 <em>필수</em></span><span>순서</span><span></span></div>
+        <div v-for="(option, index) in form.options" :key="option.seq ?? `option-${index}`" class="product-repeat-row option-row">
+          <label><span>옵션명 <em>필수</em></span><input v-model="option.optionName" required maxlength="50" :aria-label="`옵션 ${index + 1} 이름`" /></label><label><span>옵션값 <em>필수</em></span><input v-model="option.optionValue" required maxlength="100" :aria-label="`옵션 ${index + 1} 값`" /></label><label><span>순서</span><input v-model.number="option.sortOrder" min="0" type="number" :aria-label="`옵션 ${index + 1} 정렬 순서`" /></label><button type="button" class="product-row-delete" @click="form.options.splice(index, 1)">삭제</button>
         </div>
         <p v-if="!form.options.length" class="admin-api-note">옵션은 선택 사항이며 빈 배열로 등록할 수 있습니다.</p>
       </section>
       <section class="admin-form-section">
         <div class="admin-form-section-heading"><div><strong>SKU</strong><span>판매 단위별 가격과 상태를 입력합니다.</span></div><button type="button" class="admin-reset-button" @click="addVariant">+ SKU</button></div>
-        <div v-for="(variant, index) in form.variants" :key="variant.seq ?? `variant-${index}`" class="admin-full-form-grid">
-          <label>SKU <em>필수</em><input v-model="variant.sku" required maxlength="80" /></label><label>색상<input v-model="variant.color" /></label><label>사이즈<input v-model="variant.size" /></label><label>공급가<input v-model.number="variant.supplyPrice" min="0" type="number" /></label><label>판매가<input v-model.number="variant.salePrice" min="0" type="number" /></label><label>상태<input v-model="variant.status" maxlength="30" /></label><button type="button" class="admin-reset-button" @click="form.variants.splice(index, 1)">삭제</button>
+        <div v-if="form.variants.length" class="product-repeat-header variant-row" aria-hidden="true"><span>SKU <em>필수</em></span><span>색상</span><span>사이즈</span><span>공급가</span><span>판매가</span><span>상태</span><span></span></div>
+        <div v-for="(variant, index) in form.variants" :key="variant.seq ?? `variant-${index}`" class="product-repeat-row variant-row">
+          <label><span>SKU <em>필수</em></span><input v-model="variant.sku" required maxlength="80" :aria-label="`SKU ${index + 1} 코드`" /></label><label><span>색상</span><input v-model="variant.color" :aria-label="`SKU ${index + 1} 색상`" /></label><label><span>사이즈</span><input v-model="variant.size" :aria-label="`SKU ${index + 1} 사이즈`" /></label><label><span>공급가</span><input v-model.number="variant.supplyPrice" min="0" type="number" :aria-label="`SKU ${index + 1} 공급가`" /></label><label><span>판매가</span><input v-model.number="variant.salePrice" min="0" type="number" :aria-label="`SKU ${index + 1} 판매가`" /></label><label><span>상태</span><select v-model="variant.status" :aria-label="`SKU ${index + 1} 상태`"><option v-if="variant.status && !skuStatuses.some((item) => item.value === variant.status)" :value="variant.status">{{ variant.status }}</option><option v-for="item in skuStatuses" :key="item.value" :value="item.value">{{ item.label }}</option></select></label><button type="button" class="product-row-delete" @click="form.variants.splice(index, 1)">삭제</button>
         </div>
         <p v-if="!form.variants.length" class="admin-api-note">SKU는 빈 배열로 등록할 수 있습니다. 판매 이력이 있는 SKU는 삭제 대신 상태 변경을 권장합니다.</p>
       </section>

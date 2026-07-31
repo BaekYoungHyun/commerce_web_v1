@@ -1,38 +1,32 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useAuthStore } from '../stores/auth'
 import { useCartStore } from '../stores/cart'
 import type { CartItem } from '../types/cart'
 
+const authStore = useAuthStore()
 const cartStore = useCartStore()
-const { items, loading, error, allChecked, checkedCount, productAmount, shippingAmount, totalAmount } =
-  storeToRefs(cartStore)
-
-const supplierGroups = computed(() => {
-  const groups = new Map<number, { supplierId: number; supplierName: string; items: CartItem[] }>()
-  for (const item of items.value) {
-    const group = groups.get(item.supplierId) ?? {
-      supplierId: item.supplierId,
-      supplierName: item.supplierName,
-      items: [],
-    }
-    group.items.push(item)
-    groups.set(item.supplierId, group)
-  }
-  return [...groups.values()]
-})
+const {
+  cart,
+  cartSeq,
+  items,
+  loading,
+  pendingItemSeqs,
+  error,
+  allChecked,
+  checkedCount,
+  productAmount,
+} = storeToRefs(cartStore)
 
 const formatPrice = (value: number) => new Intl.NumberFormat('ko-KR').format(value)
-const supplierAmount = (supplierItems: CartItem[]) =>
-  supplierItems.filter((item) => item.checked).reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-const supplierShipping = (supplierItems: CartItem[]) => {
-  const checked = supplierItems.filter((item) => item.checked)
-  if (!checked.length) return 0
-  const sample = checked[0]!
-  return supplierAmount(checked) >= sample.freeShippingThreshold ? 0 : sample.shippingFee
-}
+const optionName = (item: CartItem) =>
+  [item.color, item.size].filter(Boolean).join(' / ') || item.sku
+const isSelected = (item: CartItem) => cartStore.checkedItems.some((current) => current.seq === item.seq)
 
-onMounted(() => cartStore.loadCart().catch(() => undefined))
+onMounted(() => {
+  if (authStore.accessToken && cartSeq.value) cartStore.loadCart().catch(() => undefined)
+})
 </script>
 
 <template>
@@ -42,37 +36,103 @@ onMounted(() => cartStore.loadCart().catch(() => undefined))
       <ol><li class="active">01 장바구니</li><li>02 주문·결제</li><li>03 주문완료</li></ol>
     </header>
 
-    <div v-if="loading && !items.length" class="cart-loading">장바구니를 불러오는 중입니다.</div>
-    <div v-else-if="error && !items.length" class="cart-error"><strong>장바구니를 불러오지 못했습니다.</strong><p>{{ error }}</p><button @click="cartStore.loadCart()">다시 시도</button></div>
-    <div v-else-if="!items.length" class="cart-empty"><span>Bag</span><strong>장바구니가 비어 있습니다.</strong><p>판매할 상품을 둘러보고 장바구니에 담아보세요.</p><RouterLink to="/">도매 상품 둘러보기</RouterLink></div>
+    <div v-if="!authStore.accessToken" class="cart-empty">
+      <span>Login</span><strong>로그인이 필요합니다.</strong>
+      <p>사업자 로그인 후 장바구니를 확인할 수 있습니다.</p>
+      <RouterLink :to="{ path: '/login', query: { redirect: '/cart' } }">로그인하기</RouterLink>
+    </div>
+    <div v-else-if="!cartSeq" class="cart-error">
+      <strong>연결된 장바구니가 없습니다.</strong>
+      <p>소매 매장의 기본 장바구니가 생성되면 이용할 수 있습니다.</p>
+    </div>
+    <div v-else-if="loading && !items.length" class="cart-loading">장바구니를 불러오는 중입니다.</div>
+    <div v-else-if="error && !items.length" class="cart-error">
+      <strong>장바구니를 불러오지 못했습니다.</strong><p>{{ error }}</p>
+      <button type="button" @click="cartStore.loadCart(true)">다시 시도</button>
+    </div>
+    <div v-else-if="!items.length" class="cart-empty">
+      <span>Bag</span><strong>장바구니가 비어 있습니다.</strong>
+      <p>판매할 상품을 둘러보고 장바구니에 담아보세요.</p>
+      <RouterLink to="/">도매 상품 둘러보기</RouterLink>
+    </div>
 
     <div v-else class="cart-layout">
       <section class="cart-list">
         <div class="cart-toolbar">
           <label><input type="checkbox" :checked="allChecked" @change="cartStore.toggleAll" /> 전체 선택</label>
-          <button @click="cartStore.removeItems(items.filter((item) => item.checked).map((item) => item.id))">선택 삭제</button>
+          <button
+            type="button"
+            :disabled="loading || !cartStore.checkedItems.length"
+            @click="cartStore.removeItems(cartStore.checkedItems.map((item) => item.seq))"
+          >선택 삭제</button>
         </div>
 
-        <article v-for="group in supplierGroups" :key="group.supplierId" class="supplier-cart-group">
-          <header><div><strong>{{ group.supplierName }}</strong><span>✓ 사업자 인증</span></div><RouterLink to="/categories">도매처 상품 더보기 →</RouterLink></header>
-          <div v-for="item in group.items" :key="item.id" class="cart-item">
-            <input type="checkbox" :checked="item.checked" :aria-label="`${item.productName} 선택`" @change="cartStore.toggleItem(item)" />
-            <RouterLink class="cart-item-image" :to="`/products/${item.productId}`"><img :src="item.imageUrl" :alt="item.productName" /></RouterLink>
-            <div class="cart-item-info"><RouterLink :to="`/products/${item.productId}`">{{ item.productName }}</RouterLink><span>옵션: {{ item.optionName }}</span><small>최소 주문 {{ item.minOrderQuantity }}개 · 재고 {{ item.stockQuantity }}개</small></div>
-            <div class="cart-quantity"><button :disabled="item.quantity <= item.minOrderQuantity" @click="cartStore.updateQuantity(item, item.quantity - 1)">−</button><strong>{{ item.quantity }}</strong><button :disabled="item.quantity >= item.stockQuantity" @click="cartStore.updateQuantity(item, item.quantity + 1)">＋</button></div>
-            <div class="cart-item-price"><strong>{{ formatPrice(item.unitPrice * item.quantity) }}원</strong><span>공급가 {{ formatPrice(item.unitPrice) }}원</span></div>
-            <button class="remove-cart-item" :aria-label="`${item.productName} 삭제`" @click="cartStore.removeItems([item.id])">×</button>
+        <article class="supplier-cart-group">
+          <header>
+            <div><strong>장바구니 #{{ cart?.cartSeq }}</strong><span>✓ 사업자 전용</span></div>
+            <RouterLink to="/">상품 더보기 →</RouterLink>
+          </header>
+          <div v-for="item in items" :key="item.seq" class="cart-item">
+            <input
+              type="checkbox"
+              :checked="isSelected(item)"
+              :aria-label="`${item.productName} 선택`"
+              @change="cartStore.toggleItem(item)"
+            />
+            <RouterLink class="cart-item-image" :to="`/products/${item.productSeq}`">
+              <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.productName" />
+              <span v-else>NO IMAGE</span>
+            </RouterLink>
+            <div class="cart-item-info">
+              <RouterLink :to="`/products/${item.productSeq}`">{{ item.productName }}</RouterLink>
+              <span>옵션: {{ optionName(item) }}</span>
+              <small>SKU {{ item.sku }}</small>
+            </div>
+            <div class="cart-quantity">
+              <button
+                type="button"
+                :disabled="item.quantity <= 1 || pendingItemSeqs.has(item.seq)"
+                @click="cartStore.updateQuantity(item, item.quantity - 1)"
+              >−</button>
+              <strong>{{ item.quantity }}</strong>
+              <button
+                type="button"
+                :disabled="pendingItemSeqs.has(item.seq)"
+                @click="cartStore.updateQuantity(item, item.quantity + 1)"
+              >＋</button>
+            </div>
+            <div class="cart-item-price">
+              <strong>{{ formatPrice(item.lineAmount) }}원</strong>
+              <span>판매가 {{ formatPrice(item.salePrice) }}원</span>
+            </div>
+            <button
+              class="remove-cart-item"
+              type="button"
+              :disabled="loading"
+              :aria-label="`${item.productName} 삭제`"
+              @click="cartStore.removeItems([item.seq])"
+            >×</button>
           </div>
-          <footer><span>도매처 상품금액 {{ formatPrice(supplierAmount(group.items)) }}원</span><b>+</b><span>배송비 {{ formatPrice(supplierShipping(group.items)) }}원</span><strong>{{ formatPrice(supplierAmount(group.items) + supplierShipping(group.items)) }}원</strong></footer>
+          <footer>
+            <span>전체 {{ cart?.totalQuantity ?? 0 }}개</span>
+            <strong>서버 계산 합계 {{ formatPrice(cart?.totalAmount ?? 0) }}원</strong>
+          </footer>
         </article>
+        <p v-if="error" class="cart-error">{{ error }}</p>
       </section>
 
       <aside class="cart-summary-panel">
-        <h2>결제 예정 금액</h2>
-        <dl><div><dt>선택 상품</dt><dd>{{ checkedCount }}개</dd></div><div><dt>상품 금액</dt><dd>{{ formatPrice(productAmount) }}원</dd></div><div><dt>배송비</dt><dd>+ {{ formatPrice(shippingAmount) }}원</dd></div></dl>
-        <div class="cart-total"><span>총 결제 금액</span><strong>{{ formatPrice(totalAmount) }}원</strong><small>VAT 포함</small></div>
-        <button class="checkout-button" :disabled="!checkedCount">{{ checkedCount }}개 상품 주문하기</button>
-        <p>구매 확정 전까지 결제 대금을 안전하게 보호합니다.</p>
+        <h2>선택 상품 금액</h2>
+        <dl>
+          <div><dt>선택 수량</dt><dd>{{ checkedCount }}개</dd></div>
+          <div><dt>상품 금액</dt><dd>{{ formatPrice(productAmount) }}원</dd></div>
+        </dl>
+        <div class="cart-total">
+          <span>선택 상품 합계</span><strong>{{ formatPrice(productAmount) }}원</strong>
+          <small>서버가 확정한 품목별 금액 기준</small>
+        </div>
+        <button class="checkout-button" type="button" disabled>주문 API 준비 중</button>
+        <p>배송비와 최종 결제 금액은 주문 단계에서 서버가 확정합니다.</p>
       </aside>
     </div>
   </main>

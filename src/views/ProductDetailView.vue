@@ -1,45 +1,119 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
-import { products } from '../data/products'
+import { productStatusLabel } from '../data/productStatuses'
+import { useAuthStore } from '../stores/auth'
 import { useCartStore } from '../stores/cart'
+import { useCatalogProductsStore } from '../stores/catalogProducts'
+import { useCategoriesStore } from '../stores/categories'
 
 const route = useRoute()
-const product = computed(() => products.find((item) => item.id === Number(route.params.id)))
-const quantity = ref(product.value?.minOrder ?? 1)
-const selectedColor = ref(product.value?.colors[0] ?? '')
-const selectedImage = ref(product.value?.detailImages[0] ?? '')
+const authStore = useAuthStore()
+const cartStore = useCartStore()
+const catalogStore = useCatalogProductsStore()
+const categoriesStore = useCategoriesStore()
+const { currentProduct: product, detailLoading: loading, detailError: error } = storeToRefs(catalogStore)
+const selectedImageSeq = ref<number | null>(null)
+const selectedVariantSeq = ref<number | null>(null)
+const variantQuantities = ref<Record<number, number>>({})
 const showToast = ref(false)
 const toastMessage = ref('')
-const cartStore = useCartStore()
 
-watch(product, (value) => {
-  quantity.value = value?.minOrder ?? 1
-  selectedColor.value = value?.colors[0] ?? ''
-  selectedImage.value = value?.detailImages[0] ?? ''
-})
-
-const totalPrice = computed(() => (product.value?.price ?? 0) * quantity.value)
+const productId = computed(() => Number(route.params.id))
+const sortedImages = computed(() => [...(product.value?.images ?? [])].sort((a, b) => a.sortOrder - b.sortOrder))
+const selectedImage = computed(
+  () => sortedImages.value.find((image) => image.seq === selectedImageSeq.value) ?? sortedImages.value[0],
+)
+const selectedVariant = computed(
+  () => product.value?.variants.find((variant) => variant.seq === selectedVariantSeq.value) ?? null,
+)
+const selectedVariants = computed(() =>
+  (product.value?.variants ?? [])
+    .map((variant) => ({ variant, quantity: variantQuantities.value[variant.seq] ?? 0 }))
+    .filter((item) => item.quantity > 0),
+)
+const totalQuantity = computed(() =>
+  selectedVariants.value.reduce((total, item) => total + item.quantity, 0),
+)
+const canOrder = computed(
+  () =>
+    product.value?.status === 'ACTIVE' &&
+    selectedVariants.value.length > 0 &&
+    totalQuantity.value >= (product.value?.minOrderQuantity ?? 1),
+)
+const totalPrice = computed(() =>
+  selectedVariants.value.reduce(
+    (total, item) => total + item.variant.supplyPrice * item.quantity,
+    0,
+  ),
+)
 const marginRate = computed(() => {
-  if (!product.value) return 0
-  return Math.round(((product.value.retailPrice - product.value.price) / product.value.retailPrice) * 100)
+  const variant = selectedVariant.value
+  if (!variant || variant.salePrice <= 0) return 0
+  return Math.round(((variant.salePrice - variant.supplyPrice) / variant.salePrice) * 100)
 })
-const formatPrice = (value: number) => new Intl.NumberFormat('ko-KR').format(value)
+const categoryName = computed(() =>
+  product.value ? categoriesStore.nameOf(product.value.categorySeq) : '',
+)
 
-function changeQuantity(amount: number) {
-  if (!product.value) return
-  quantity.value = Math.min(product.value.stock, Math.max(product.value.minOrder, quantity.value + amount))
+const formatPrice = (value: number) => new Intl.NumberFormat('ko-KR').format(value)
+const variantName = (variant: NonNullable<typeof product.value>['variants'][number]) =>
+  [variant.color, variant.size].filter(Boolean).join(' / ') || variant.sku
+
+async function loadProduct() {
+  if (!authStore.accessToken || !Number.isInteger(productId.value) || productId.value <= 0) return
+  try {
+    await Promise.all([
+      catalogStore.fetchProduct(productId.value),
+      categoriesStore.fetchCategories(),
+    ])
+    selectedImageSeq.value = sortedImages.value[0]?.seq ?? null
+    selectedVariantSeq.value = null
+    variantQuantities.value = {}
+  } catch {
+    // 스토어의 상세 오류 상태를 화면에 표시한다.
+  }
+}
+
+watch(productId, loadProduct, { immediate: true })
+
+function selectVariant(variantSeq: number) {
+  selectedVariantSeq.value = variantSeq
+  variantQuantities.value = {
+    ...variantQuantities.value,
+    [variantSeq]: (variantQuantities.value[variantSeq] ?? 0) + 1,
+  }
+}
+
+function changeVariantQuantity(variantSeq: number, amount: number) {
+  const nextQuantity = Math.max(0, (variantQuantities.value[variantSeq] ?? 0) + amount)
+  const nextQuantities = { ...variantQuantities.value }
+  if (nextQuantity === 0) {
+    delete nextQuantities[variantSeq]
+    if (selectedVariantSeq.value === variantSeq) {
+      selectedVariantSeq.value = selectedVariants.value.find(
+        (item) => item.variant.seq !== variantSeq,
+      )?.variant.seq ?? null
+    }
+  } else {
+    nextQuantities[variantSeq] = nextQuantity
+    selectedVariantSeq.value = variantSeq
+  }
+  variantQuantities.value = nextQuantities
 }
 
 async function addToCart() {
-  if (!product.value) return
+  if (!product.value || !canOrder.value) return
   try {
-    await cartStore.addItem({
-      productId: product.value.id,
-      optionName: selectedColor.value,
-      quantity: quantity.value,
-    })
-    toastMessage.value = `${product.value.name} ${quantity.value}개를 장바구니에 담았습니다.`
+    for (const item of selectedVariants.value) {
+      await cartStore.addItem({
+        productSeq: product.value.seq,
+        variantSeq: item.variant.seq,
+        quantity: item.quantity,
+      })
+    }
+    toastMessage.value = `${product.value.name} ${totalQuantity.value}개를 장바구니에 담았습니다.`
   } catch {
     toastMessage.value = cartStore.error
   }
@@ -49,63 +123,118 @@ async function addToCart() {
 </script>
 
 <template>
-  <main v-if="product" class="detail-page">
+  <main v-if="!authStore.accessToken" class="detail-page catalog-api-state">
+    <strong>사업자 로그인 후 상품 상세를 확인할 수 있습니다.</strong>
+    <RouterLink :to="{ path: '/login', query: { redirect: route.fullPath } }">로그인하기 →</RouterLink>
+  </main>
+
+  <main v-else-if="loading" class="detail-page catalog-api-state">
+    <strong>상품 상세 정보를 불러오는 중입니다.</strong>
+  </main>
+
+  <main v-else-if="error || !product" class="detail-page catalog-api-state">
+    <strong>{{ error || '상품을 찾을 수 없습니다.' }}</strong>
+    <button type="button" @click="loadProduct">다시 시도</button>
+    <RouterLink to="/">상품 목록으로 돌아가기</RouterLink>
+  </main>
+
+  <main v-else class="detail-page api-catalog-detail">
     <nav class="breadcrumbs" aria-label="현재 위치">
-      <RouterLink to="/">도매 상품</RouterLink><span>›</span><span>{{ product.category }}</span><span>›</span><strong>{{ product.name }}</strong>
+      <RouterLink to="/">도매 상품</RouterLink><span>›</span><span>{{ categoryName }}</span><span>›</span><strong>{{ product.name }}</strong>
     </nav>
 
     <section class="detail-layout">
       <div class="detail-gallery">
-        <div class="detail-thumbnails" aria-label="상품 상세 이미지 선택">
+        <div v-if="sortedImages.length" class="detail-thumbnails" aria-label="상품 상세 이미지 선택">
           <button
-            v-for="(image, index) in product.detailImages"
-            :key="image"
-            :class="{ active: selectedImage === image }"
-            :aria-label="`${product.name} 상세 이미지 ${index + 1} 보기`"
-            @click="selectedImage = image"
+            v-for="(image, index) in sortedImages"
+            :key="image.seq"
+            type="button"
+            :class="{ active: selectedImage?.seq === image.seq }"
+            :aria-label="`${product.name} 이미지 ${index + 1} 보기`"
+            :aria-pressed="selectedImage?.seq === image.seq"
+            @click="selectedImageSeq = image.seq"
           >
-            <img :src="image" :alt="`${product.name} 상세 이미지 ${index + 1}`" />
+            <img :src="image.imageUrl" :alt="`${product.name} 이미지 ${index + 1}`" />
           </button>
         </div>
         <div class="detail-image">
-          <Transition name="gallery-fade" mode="out-in">
-            <img :key="selectedImage" :src="selectedImage" :alt="`${product.name} 선택 이미지`" />
+          <Transition v-if="selectedImage" name="gallery-fade" mode="out-in">
+            <img :key="selectedImage.seq" :src="selectedImage.imageUrl" :alt="`${product.name} 선택 이미지`" />
           </Transition>
-          <span v-if="product.badge" class="badge">{{ product.badge }}</span>
-          <span class="image-counter">{{ product.detailImages.indexOf(selectedImage) + 1 }} / {{ product.detailImages.length }}</span>
+          <div v-else class="detail-image-empty">등록된 상품 이미지가 없습니다.</div>
+          <span class="badge">{{ productStatusLabel(product.status) }}</span>
+          <span v-if="selectedImage" class="image-counter">{{ sortedImages.findIndex((image) => image.seq === selectedImage?.seq) + 1 }} / {{ sortedImages.length }}</span>
         </div>
       </div>
 
       <div class="detail-info">
-        <div class="supplier-row"><span>{{ product.supplier }}</span><strong>✓ 사업자 인증</strong></div>
+        <div class="supplier-row"><span>도매처 #{{ product.wholesaleStoreId }}</span><strong>✓ B2B 전용 상품</strong></div>
         <h1>{{ product.name }}</h1>
-        <p class="detail-description">{{ product.description }}</p>
+        <p class="detail-description">{{ product.description || '등록된 상품 설명이 없습니다.' }}</p>
 
         <div class="detail-pricing">
-          <div><span>도매 공급가</span><strong>{{ formatPrice(product.price) }}원</strong><small>VAT 포함</small></div>
-          <div><span>권장 판매가</span><b>{{ formatPrice(product.retailPrice) }}원</b></div>
+          <div><span>도매 공급가</span><strong>{{ formatPrice(selectedVariant?.supplyPrice ?? 0) }}원</strong><small>선택 SKU 기준</small></div>
+          <div><span>판매가</span><b>{{ formatPrice(selectedVariant?.salePrice ?? 0) }}원</b></div>
           <div class="margin-highlight"><span>예상 마진율</span><b>{{ marginRate }}%</b></div>
         </div>
 
         <dl class="trade-conditions">
-          <div><dt>최소 주문</dt><dd>{{ product.minOrder }}개부터</dd></div>
-          <div><dt>재고</dt><dd>{{ product.stock }}개</dd></div>
-          <div><dt>출고 예정</dt><dd>{{ product.delivery }}</dd></div>
-          <div><dt>배송비</dt><dd>도매처별 3,000원 · 10만원 이상 무료</dd></div>
+          <div><dt>카테고리</dt><dd>{{ categoryName }}</dd></div>
+          <div><dt>최소 주문</dt><dd>{{ product.minOrderQuantity.toLocaleString() }}개부터</dd></div>
+          <div><dt>상품 상태</dt><dd>{{ productStatusLabel(product.status) }}</dd></div>
+          <div><dt>조회수</dt><dd>{{ product.viewCount.toLocaleString() }}회</dd></div>
         </dl>
 
+        <div v-if="product.options.length" class="api-option-summary">
+          <span>상품 옵션</span>
+          <div><i v-for="option in product.options" :key="option.seq">{{ option.optionName }} · {{ option.optionValue }}</i></div>
+        </div>
+
         <div class="option-block">
-          <span>색상 선택</span>
-          <div class="option-buttons"><button v-for="color in product.colors" :key="color" :class="{ active: selectedColor === color }" @click="selectedColor = color">{{ color }}</button></div>
+          <span>SKU 선택</span>
+          <div v-if="product.variants.length" class="option-buttons">
+            <button
+              v-for="variant in product.variants"
+              :key="variant.seq"
+              type="button"
+              :class="{ active: (variantQuantities[variant.seq] ?? 0) > 0 }"
+              :disabled="variant.status !== 'ACTIVE'"
+              :aria-label="`${variantName(variant)} 1개 추가`"
+              @click="selectVariant(variant.seq)"
+            >
+              {{ variantName(variant) }} · {{ formatPrice(variant.supplyPrice) }}원
+              <b v-if="variantQuantities[variant.seq]">×{{ variantQuantities[variant.seq] }}</b>
+              <small v-if="variant.status !== 'ACTIVE'">{{ productStatusLabel(variant.status) }}</small>
+            </button>
+          </div>
+          <p v-else class="detail-empty-copy">등록된 SKU가 없습니다.</p>
+        </div>
+
+        <div class="selected-sku-list">
+          <div v-for="item in selectedVariants" :key="item.variant.seq">
+            <span><strong>{{ variantName(item.variant) }}</strong><small>{{ item.variant.sku }}</small></span>
+            <div class="quantity-control">
+              <button type="button" :aria-label="`${variantName(item.variant)} 수량 줄이기`" @click="changeVariantQuantity(item.variant.seq, -1)">−</button>
+              <strong>{{ item.quantity }}</strong>
+              <button type="button" :aria-label="`${variantName(item.variant)} 수량 늘리기`" @click="changeVariantQuantity(item.variant.seq, 1)">＋</button>
+            </div>
+            <b>{{ formatPrice(item.variant.supplyPrice * item.quantity) }}원</b>
+          </div>
+          <p v-if="!selectedVariants.length">SKU를 클릭하면 수량이 1개씩 추가됩니다.</p>
         </div>
 
         <div class="order-box">
-          <div class="quantity-control"><button aria-label="수량 줄이기" @click="changeQuantity(-1)">−</button><strong>{{ quantity }}</strong><button aria-label="수량 늘리기" @click="changeQuantity(1)">＋</button></div>
+          <div class="order-quantity"><span>총 선택 수량</span><strong>{{ totalQuantity.toLocaleString() }}개</strong></div>
           <div class="order-total"><span>총 상품 금액</span><strong>{{ formatPrice(totalPrice) }}원</strong></div>
         </div>
 
-        <div class="detail-actions"><button class="wish-button" aria-label="찜하기">♡</button><button class="cart-button" @click="addToCart">장바구니 담기</button><button class="buy-button">바로 주문</button></div>
-        <p class="business-notice">사업자 인증 완료 후 공급가로 주문할 수 있습니다.</p>
+        <div class="detail-actions">
+          <button class="wish-button" type="button" aria-label="찜하기">♡</button>
+          <button class="cart-button" type="button" :disabled="!canOrder || cartStore.loading" @click="addToCart">{{ canOrder ? '장바구니 담기' : `최소 ${product.minOrderQuantity}개 선택` }}</button>
+          <button class="buy-button" type="button" disabled>바로 주문</button>
+        </div>
+        <p class="business-notice">사업자 전용 상품이며 선택한 SKU의 공급가로 주문합니다.</p>
       </div>
     </section>
 
@@ -113,22 +242,22 @@ async function addToCart() {
       <header>
         <p class="eyebrow coral">PRODUCT DETAIL</p>
         <h2>상품 상세 이미지</h2>
-        <p>{{ product.name }}의 소재와 실루엣을 자세히 확인해보세요.</p>
+        <p>{{ product.name }}의 등록 이미지를 자세히 확인해보세요.</p>
       </header>
-      <div class="detail-image-stack">
-        <figure v-for="(image, index) in product.detailImages" :key="`detail-${image}`">
-          <img :src="image" :alt="`${product.name} 상품 상세 이미지 ${index + 1}`" loading="lazy" />
-          <figcaption>{{ String(index + 1).padStart(2, '0') }} / {{ String(product.detailImages.length).padStart(2, '0') }}</figcaption>
+      <div v-if="sortedImages.length" class="detail-image-stack">
+        <figure v-for="(image, index) in sortedImages" :key="`detail-${image.seq}`">
+          <img :src="image.imageUrl" :alt="`${product.name} 상품 상세 이미지 ${index + 1}`" loading="lazy" />
+          <figcaption>{{ String(index + 1).padStart(2, '0') }} / {{ String(sortedImages.length).padStart(2, '0') }}</figcaption>
         </figure>
       </div>
+      <p v-else class="detail-empty-copy">등록된 상세 이미지가 없습니다.</p>
     </section>
 
     <section class="detail-guide">
       <h2>거래 전 확인사항</h2>
-      <div><article><span>01</span><strong>사업자 전용 상품</strong><p>사업자 인증 회원만 구매할 수 있습니다.</p></article><article><span>02</span><strong>최소 주문 수량</strong><p>옵션을 합산해 최소 수량 이상 주문해 주세요.</p></article><article><span>03</span><strong>안전한 거래</strong><p>구매 확정 전까지 결제 대금을 보호합니다.</p></article></div>
+      <div><article><span>01</span><strong>사업자 전용 상품</strong><p>사업자 인증 회원만 구매할 수 있습니다.</p></article><article><span>02</span><strong>최소 주문 수량</strong><p>최소 {{ product.minOrderQuantity.toLocaleString() }}개 이상 주문해 주세요.</p></article><article><span>03</span><strong>SKU 상태 확인</strong><p>판매 중인 SKU만 장바구니에 담을 수 있습니다.</p></article></div>
     </section>
   </main>
 
-  <main v-else class="not-found"><strong>상품을 찾을 수 없습니다.</strong><RouterLink to="/">상품 목록으로 돌아가기</RouterLink></main>
   <Transition name="toast"><div v-if="showToast" class="toast">✓ {{ toastMessage }}</div></Transition>
 </template>

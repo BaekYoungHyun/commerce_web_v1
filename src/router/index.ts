@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import AdminLayout from '../layouts/AdminLayout.vue'
+import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -48,7 +49,7 @@ const router = createRouter({
       path: '/admin',
       component: AdminLayout,
       redirect: '/admin/supplier/products',
-      meta: { layout: 'admin' },
+      meta: { layout: 'admin', requiresAuth: true },
       children: [
         {
           path: 'supplier/products',
@@ -89,6 +90,23 @@ const router = createRouter({
       ],
     },
   ],
+})
+
+router.beforeEach(async (to) => {
+  if (!to.matched.some((record) => record.meta.requiresAuth)) return true
+
+  const authStore = useAuthStore()
+  if (!authStore.accessToken) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+
+  try {
+    await authStore.getValidAccessToken()
+    return true
+  } catch {
+    authStore.clear()
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
 })
 
 export default router

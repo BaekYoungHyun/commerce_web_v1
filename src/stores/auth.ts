@@ -4,9 +4,20 @@ import { authApi } from '../services/authApi'
 import { ApiError } from '../services/httpClient'
 import type { LoginRequest, SignUpRequest, User } from '../types/auth'
 
+const ACCESS_TOKEN_KEY = 'commerce.accessToken'
+const ACCESS_TOKEN_EXPIRES_AT_KEY = 'commerce.accessTokenExpiresAt'
+
+function readSessionToken() {
+  if (typeof sessionStorage === 'undefined') return { token: null, expiresAt: null }
+  const token = sessionStorage.getItem(ACCESS_TOKEN_KEY)
+  const storedExpiresAt = Number(sessionStorage.getItem(ACCESS_TOKEN_EXPIRES_AT_KEY))
+  return { token, expiresAt: Number.isFinite(storedExpiresAt) && storedExpiresAt > 0 ? storedExpiresAt : null }
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const accessToken = ref<string | null>(null)
-  const accessTokenExpiresAt = ref<number | null>(null)
+  const sessionToken = readSessionToken()
+  const accessToken = ref<string | null>(sessionToken.token)
+  const accessTokenExpiresAt = ref<number | null>(sessionToken.expiresAt)
   const user = ref<User | null>(null)
   const loading = ref(false)
   const error = ref('')
@@ -14,8 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(
     () =>
-      Boolean(accessToken.value) &&
-      (accessTokenExpiresAt.value === null || accessTokenExpiresAt.value > Date.now()),
+      Boolean(accessToken.value),
   )
 
   function clear() {
@@ -24,11 +34,19 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     error.value = ''
     refreshPromise = null
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem(ACCESS_TOKEN_KEY)
+      sessionStorage.removeItem(ACCESS_TOKEN_EXPIRES_AT_KEY)
+    }
   }
 
   function applyToken(token: string, expiresAt: number) {
     accessToken.value = token
     accessTokenExpiresAt.value = expiresAt
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(ACCESS_TOKEN_KEY, token)
+      sessionStorage.setItem(ACCESS_TOKEN_EXPIRES_AT_KEY, String(expiresAt))
+    }
   }
 
   async function signUp(payload: SignUpRequest) {
@@ -81,10 +99,17 @@ export const useAuthStore = defineStore('auth', () => {
     return refreshPromise
   }
 
+  async function getValidAccessToken() {
+    if (!accessToken.value) throw new ApiError(401, '로그인이 필요합니다.')
+    const expiresAt = accessTokenExpiresAt.value
+    if (expiresAt !== null && expiresAt <= Date.now() + 10_000) return refreshAccessToken()
+    return accessToken.value
+  }
+
   async function fetchCurrentUser() {
     if (!accessToken.value) return null
     try {
-      user.value = await authApi.getCurrentUser(accessToken.value)
+      user.value = await authApi.getCurrentUser(await getValidAccessToken())
     } catch (cause) {
       if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
       const refreshedToken = await refreshAccessToken()
@@ -113,6 +138,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     fetchCurrentUser,
     refreshAccessToken,
+    getValidAccessToken,
     logout,
     clear,
   }

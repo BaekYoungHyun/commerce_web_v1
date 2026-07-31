@@ -17,6 +17,22 @@ describe('productApi', () => {
     expect(String(fetchMock.mock.calls[0]![0])).not.toContain('/api/v1/api/v1')
   })
 
+  it('상품 조회 로그를 사용자 정보와 함께 등록한다', async () => {
+    const view = { seq: 7, userId: 3, productSeq: 1, viewedAt: '2026-07-31T10:00:00+09:00' }
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(view, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(productApi.createView('token', 1, { userId: 3 })).resolves.toEqual(view)
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/products/1/views'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer token' }),
+        body: JSON.stringify({ userId: 3 }),
+      }),
+    )
+  })
+
   it('상품 수정은 PUT과 전체 필수 필드를 전송한다', async () => {
     const payload = { wholesaleStoreId: 10, categorySeq: 3, name: '수정 셔츠', description: null, status: 'DRAFT', minOrderQuantity: 2, images: [], options: [], variants: [] }
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ seq: 1, ...payload, createdAt: '', updatedAt: '' }))

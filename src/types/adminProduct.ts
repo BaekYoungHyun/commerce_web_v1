@@ -38,6 +38,17 @@ export interface AdminProductVariant {
   status: string
 }
 
+export interface ProductViewCreateRequest {
+  userId?: number | null
+}
+
+export interface ProductView {
+  seq: number
+  userId: number | null
+  productSeq: number
+  viewedAt: string
+}
+
 export interface AdminProductImageRequest {
   seq?: number
   imageUrl: string

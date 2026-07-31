@@ -1,28 +1,35 @@
-export type CartItem = {
-  id: number
-  productId: number
-  supplierId: number
-  supplierName: string
+export interface CartItem {
+  seq: number
+  cartSeq: number
+  productSeq: number
   productName: string
-  imageUrl: string
-  optionName: string
-  unitPrice: number
-  retailPrice: number
-  minOrderQuantity: number
+  imageUrl: string | null
+  variantSeq: number
+  sku: string
+  color: string | null
+  size: string | null
+  salePrice: number
   quantity: number
-  stockQuantity: number
-  shippingFee: number
-  freeShippingThreshold: number
-  checked: boolean
+  lineAmount: number
+  createdAt: string
 }
 
-export type AddCartItemRequest = {
-  productId: number
-  optionName: string
+export interface Cart {
+  cartSeq: number
+  retailStoreSeq: number
+  items: CartItem[]
+  totalQuantity: number
+  totalAmount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CartItemAddRequest {
+  productSeq: number
+  variantSeq: number
   quantity: number
 }
 
-export type UpdateCartItemRequest = {
-  quantity?: number
-  checked?: boolean
+export interface CartItemUpdateRequest {
+  quantity: number
 }

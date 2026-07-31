@@ -1,17 +1,32 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useCartStore } from './stores/cart'
+import { useCategoriesStore } from './stores/categories'
 
 const menuOpen = ref(false)
 const route = useRoute()
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const categoriesStore = useCategoriesStore()
 const isAdminLayout = computed(() => route.meta.layout === 'admin')
 
-onMounted(() => cartStore.loadCart().catch(() => undefined))
+onMounted(() => {
+  if (authStore.accessToken && cartStore.cartSeq) cartStore.loadCart().catch(() => undefined)
+})
+
+watch(
+  () => authStore.accessToken,
+  (accessToken) => {
+    if (accessToken) {
+      categoriesStore.fetchCategories().catch(() => undefined)
+      if (cartStore.cartSeq) cartStore.loadCart().catch(() => undefined)
+    } else cartStore.clearCart()
+  },
+  { immediate: true },
+)
 
 async function logout() {
   await authStore.logout().catch(() => undefined)
@@ -31,7 +46,6 @@ async function logout() {
           <span>YH</span>MARKET <small>BUSINESS</small>
         </RouterLink>
         <nav class="main-nav" :class="{ open: menuOpen }" aria-label="주요 메뉴">
-          <RouterLink to="/categories">카테고리</RouterLink>
           <RouterLink to="/">도매 상품</RouterLink>
           <a href="/#new">신상품</a>
           <a href="/#benefits">거래 혜택</a>
@@ -48,6 +62,12 @@ async function logout() {
           <RouterLink v-else class="login-button" to="/login">로그인</RouterLink>
           <button class="menu-button" aria-label="메뉴 열기" @click="menuOpen = !menuOpen">☰</button>
         </div>
+      </div>
+      <div class="header-category-area">
+        <nav v-if="authStore.accessToken && categoriesStore.categories.length" class="header-category-primary" aria-label="1뎁스 상품 카테고리">
+          <RouterLink to="/categories">전체</RouterLink><RouterLink v-for="category in categoriesStore.categories" :key="category.seq" :to="{ path: `/categories/${encodeURIComponent(category.name)}`, query: { categorySeq: category.seq } }">{{ category.name }}</RouterLink>
+        </nav>
+        <div v-else class="header-category-status"><span v-if="categoriesStore.loading">카테고리를 불러오는 중...</span><span v-else-if="categoriesStore.error">카테고리를 불러오지 못했습니다.</span><RouterLink v-else to="/login">로그인 후 전체 카테고리 보기 →</RouterLink></div>
       </div>
     </header>
 
