@@ -539,3 +539,7 @@
 - 로그인 사용자의 문의만 반환하는 공통 `/support/inquiries`는 관리자 화면에서 재사용하지 않고 별도 `/admin/support/inquiries` API 클라이언트·스토어 구성
 - 필요한 관리자 전체 문의 목록·답변·상태 변경 API 계약과 권한·필드·검증 규칙을 `docs/api-guide.md` API-012로 요청
 - 관리자 문의 API 계약은 아직 `docs/frontend-api-guide.md`에 확정되지 않았으므로 백엔드 미구현 오류를 화면에 명시적으로 표시
+
+### 2026-09-04
+
+- Vercel 의존성 설치를 잠금 파일 기반 `npm ci`로 변경하고, 복원된 캐시를 우선 사용하며 배포 중 불필요한 audit·funding 요청을 생략하도록 설정했다. (`COMMERCE_VercelNodeVersion_002`)
