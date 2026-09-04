@@ -24,9 +24,8 @@ export const useAdminProductsStore = defineStore('adminProducts', () => {
   const products = computed(() => pageData.value.content)
 
   async function authorized<T>(request: (accessToken: string) => Promise<T>) {
-    if (!authStore.accessToken) throw new ApiError(401, '로그인이 필요합니다.')
     try {
-      return await request(authStore.accessToken)
+      return await request(await authStore.getValidAccessToken())
     } catch (cause) {
       if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
       const refreshedToken = await authStore.refreshAccessToken()

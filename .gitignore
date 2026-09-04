@@ -39,3 +39,6 @@ __screenshots__/
 *.timestamp-*-*.mjs
 
 docs/
+!docs/
+docs/*
+!docs/api-guide.md

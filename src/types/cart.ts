@@ -1,28 +1,60 @@
-export type CartItem = {
-  id: number
-  productId: number
-  supplierId: number
-  supplierName: string
+export interface CartItem {
+  seq: number
+  wholesaleStoreSeq: number
+  productSeq: number
   productName: string
-  imageUrl: string
-  optionName: string
-  unitPrice: number
-  retailPrice: number
-  minOrderQuantity: number
+  imageUrl: string | null
+  variantSeq: number
+  sku: string
+  color: string | null
+  size: string | null
+  salePrice: number
   quantity: number
-  stockQuantity: number
-  shippingFee: number
-  freeShippingThreshold: number
-  checked: boolean
+  lineAmount: number
+  createdAt: string
 }
 
-export type AddCartItemRequest = {
-  productId: number
-  optionName: string
+export interface CartBuyer {
+  userSeq: number
+  name: string
+  phone: string
+  businessProfileSeq: number | null
+  businessNumber: string | null
+  companyName: string | null
+  representativeName: string | null
+  retailStoreSeq: number | null
+  retailStoreName: string | null
+  salesChannel: string | null
+}
+
+export interface CartWholesaleGroup {
+  wholesaleStoreSeq: number
+  wholesaleStoreName: string
+  marketName: string | null
+  floorRoom: string | null
+  businessProfileSeq: number
+  businessNumber: string
+  companyName: string
+  representativeName: string
+  items: CartItem[]
+  totalQuantity: number
+  subtotalAmount: number
+}
+
+export interface Cart {
+  userSeq: number
+  buyer: CartBuyer
+  wholesales: CartWholesaleGroup[]
+  totalQuantity: number
+  totalAmount: number
+}
+
+export interface CartItemAddRequest {
+  productSeq: number
+  variantSeq: number
   quantity: number
 }
 
-export type UpdateCartItemRequest = {
-  quantity?: number
-  checked?: boolean
+export interface CartItemUpdateRequest {
+  quantity: number
 }

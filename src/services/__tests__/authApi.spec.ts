@@ -26,6 +26,7 @@ describe('authApi', () => {
             phone: '01012345678',
             name: '셀러',
             status: 'PENDING',
+            businessType: 'RETAIL',
             lastLoginAt: null,
             createdAt: '2026-07-24T15:30:45',
             updatedAt: '2026-07-24T15:30:45',
@@ -43,6 +44,7 @@ describe('authApi', () => {
       passwd: 'password1234!',
       phone: '01012345678',
       name: '셀러',
+      businessType: 'RETAIL',
     })
 
     expect(user).not.toHaveProperty('passwd')
@@ -55,6 +57,7 @@ describe('authApi', () => {
           passwd: 'password1234!',
           phone: '01012345678',
           name: '셀러',
+          businessType: 'RETAIL',
         }),
       }),
     )
@@ -73,6 +76,10 @@ describe('authApi', () => {
             grantType: 'Bearer',
             accessToken: 'access-token',
             accessTokenExpiresIn: 1784878245000,
+            businessType: 'WHOLESALE',
+            roles: ['WHOLESALER'],
+            adminScopes: ['WHOLESALE'],
+            landingPage: 'WHOLESALE_ADMIN',
           },
           dataTime: '2026-07-24 15:30:45',
           httpStatus: 'OK',
@@ -84,6 +91,10 @@ describe('authApi', () => {
       grantType: 'Bearer',
       accessToken: 'access-token',
       accessTokenExpiresIn: 1784878245000,
+      businessType: 'WHOLESALE',
+      roles: ['WHOLESALER'],
+      adminScopes: ['WHOLESALE'],
+      landingPage: 'WHOLESALE_ADMIN',
     })
   })
 

@@ -7,7 +7,8 @@ import type { AdminProduct } from '../../types/adminProduct'
 
 const product: AdminProduct = {
   seq: 11,
-  wholesaleStoreId: 10,
+  wholesaleStoreSeq: 10,
+  wholesaleStoreName: '테스트 도매상',
   categorySeq: 3,
   name: '기본 셔츠',
   description: '상품 상세 설명',
@@ -42,7 +43,7 @@ describe('adminProducts store', () => {
     const update = vi.spyOn(productApi, 'update').mockResolvedValue({ ...product, name: '수정 셔츠' })
     const store = useAdminProductsStore()
     const payload = {
-      wholesaleStoreId: 10,
+      wholesaleStoreSeq: 10,
       categorySeq: 3,
       name: '기본 셔츠',
       description: '상품 상세 설명',
