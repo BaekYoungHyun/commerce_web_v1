@@ -7,3 +7,4 @@
   - API 적용 전 `docs/frontend-api-guide.md`를 항상 참고해
   - api 연도정보도 정리해서 기록해
   - 앞으로 docs/frontend-api-guide.md를 API 연동의 우선 참조로 삼도록 저장소 지침과 메모에 명시해
+  - api 작업중 필요한 필드 또는 로직은 `docs/api-guide.md`에 기록해줘

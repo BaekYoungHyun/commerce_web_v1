@@ -5,7 +5,13 @@ import { ApiError } from '../services/httpClient'
 import { useAuthStore } from './auth'
 import type { AdminProduct, AdminProductListParams, AdminProductPage } from '../types/adminProduct'
 
-const emptyPage = (): AdminProductPage => ({ content: [], page: 0, size: 20, totalElements: 0, totalPages: 0 })
+const emptyPage = (): AdminProductPage => ({
+  content: [],
+  page: 0,
+  size: 20,
+  totalElements: 0,
+  totalPages: 0,
+})
 
 export const useCatalogProductsStore = defineStore('catalogProducts', () => {
   const authStore = useAuthStore()
@@ -37,7 +43,7 @@ export const useCatalogProductsStore = defineStore('catalogProducts', () => {
     }
   }
 
-  async function fetchProduct(productId: number) {
+  async function fetchProduct(productSeq: number) {
     detailLoading.value = true
     detailError.value = ''
     viewError.value = ''
@@ -45,22 +51,22 @@ export const useCatalogProductsStore = defineStore('catalogProducts', () => {
     try {
       let accessToken = await authStore.getValidAccessToken()
       try {
-        currentProduct.value = await productApi.detail(accessToken, productId)
+        currentProduct.value = await productApi.detail(accessToken, productSeq)
       } catch (cause) {
         if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
         accessToken = await authStore.refreshAccessToken()
-        currentProduct.value = await productApi.detail(accessToken, productId)
+        currentProduct.value = await productApi.detail(accessToken, productSeq)
       }
 
       try {
         try {
-          await productApi.createView(accessToken, productId, {
+          await productApi.createView(accessToken, productSeq, {
             userId: authStore.user?.seq ?? null,
           })
         } catch (cause) {
           if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
           accessToken = await authStore.refreshAccessToken()
-          await productApi.createView(accessToken, productId, {
+          await productApi.createView(accessToken, productSeq, {
             userId: authStore.user?.seq ?? null,
           })
         }
@@ -71,11 +77,11 @@ export const useCatalogProductsStore = defineStore('catalogProducts', () => {
 
       try {
         try {
-          currentProduct.value = await productApi.detail(accessToken, productId)
+          currentProduct.value = await productApi.detail(accessToken, productSeq)
         } catch (cause) {
           if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
           accessToken = await authStore.refreshAccessToken()
-          currentProduct.value = await productApi.detail(accessToken, productId)
+          currentProduct.value = await productApi.detail(accessToken, productSeq)
         }
       } catch (cause) {
         viewError.value =
@@ -83,7 +89,8 @@ export const useCatalogProductsStore = defineStore('catalogProducts', () => {
       }
       return currentProduct.value
     } catch (cause) {
-      detailError.value = cause instanceof Error ? cause.message : '상품 상세 정보를 불러오지 못했습니다.'
+      detailError.value =
+        cause instanceof Error ? cause.message : '상품 상세 정보를 불러오지 못했습니다.'
       throw cause
     } finally {
       detailLoading.value = false

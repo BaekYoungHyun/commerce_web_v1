@@ -8,7 +8,7 @@ describe('productApi', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('상품 상세를 Bearer 인증으로 조회한다', async () => {
-    const product = { seq: 1, wholesaleStoreId: 10, categorySeq: 3, name: '셔츠', description: null, status: 'DRAFT', minOrderQuantity: 2, createdAt: '2026-07-25T10:30:00+09:00', updatedAt: '2026-07-25T10:30:00+09:00', images: [], options: [], variants: [], viewCount: 0 }
+    const product = { seq: 1, wholesaleStoreSeq: 10, wholesaleStoreName: '테스트 도매상', categorySeq: 3, name: '셔츠', description: null, status: 'DRAFT', minOrderQuantity: 2, createdAt: '2026-07-25T10:30:00+09:00', updatedAt: '2026-07-25T10:30:00+09:00', images: [], options: [], variants: [], viewCount: 0 }
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(product))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -34,7 +34,7 @@ describe('productApi', () => {
   })
 
   it('상품 수정은 PUT과 전체 필수 필드를 전송한다', async () => {
-    const payload = { wholesaleStoreId: 10, categorySeq: 3, name: '수정 셔츠', description: null, status: 'DRAFT', minOrderQuantity: 2, images: [], options: [], variants: [] }
+    const payload = { wholesaleStoreSeq: 10, categorySeq: 3, name: '수정 셔츠', description: null, status: 'DRAFT', minOrderQuantity: 2, images: [], options: [], variants: [] }
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ seq: 1, ...payload, createdAt: '', updatedAt: '' }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -46,7 +46,7 @@ describe('productApi', () => {
   it('검증 오류의 필드 메시지를 ApiError에 보존한다', async () => {
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ timestamp: '', code: 'C001', message: 'Invalid input.', errors: [{ field: 'name', message: 'must not be blank' }] }, 400)))
 
-    await expect(productApi.create('token', { wholesaleStoreId: 10, categorySeq: 3, name: '', images: [], options: [], variants: [] })).rejects.toMatchObject({ status: 400, code: 'C001', fieldErrors: { name: 'must not be blank' } })
+    await expect(productApi.create('token', { wholesaleStoreSeq: 10, categorySeq: 3, name: '', images: [], options: [], variants: [] })).rejects.toMatchObject({ status: 400, code: 'C001', fieldErrors: { name: 'must not be blank' } })
   })
 
   it('상품 목록에 categorySeq 검색 조건을 전송한다', async () => {

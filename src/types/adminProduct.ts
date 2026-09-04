@@ -1,6 +1,7 @@
 export interface AdminProduct {
   seq: number
-  wholesaleStoreId: number
+  wholesaleStoreSeq: number
+  wholesaleStoreName: string | null
   categorySeq: number
   name: string
   description: string | null
@@ -82,7 +83,7 @@ export interface AdminProductPage {
 }
 
 export interface AdminProductCreateRequest {
-  wholesaleStoreId: number
+  wholesaleStoreSeq: number
   categorySeq: number
   name: string
   description?: string | null
@@ -94,7 +95,7 @@ export interface AdminProductCreateRequest {
 }
 
 export interface AdminProductUpdateRequest {
-  wholesaleStoreId: number
+  wholesaleStoreSeq: number
   categorySeq: number
   name: string
   description?: string | null
@@ -108,7 +109,7 @@ export interface AdminProductUpdateRequest {
 export interface AdminProductListParams {
   page?: number
   size?: number
-  wholesaleStoreId?: number
+  wholesaleStoreSeq?: number
   categorySeq?: number
   status?: string
   name?: string

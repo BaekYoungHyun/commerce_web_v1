@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useCartStore } from './stores/cart'
@@ -12,17 +12,15 @@ const cartStore = useCartStore()
 const authStore = useAuthStore()
 const categoriesStore = useCategoriesStore()
 const isAdminLayout = computed(() => route.meta.layout === 'admin')
-
-onMounted(() => {
-  if (authStore.accessToken && cartStore.cartSeq) cartStore.loadCart().catch(() => undefined)
-})
+const adminPath = computed(() => authStore.isAuthenticated ? authStore.adminEntryPath : '/login')
 
 watch(
   () => authStore.accessToken,
   (accessToken) => {
     if (accessToken) {
+      if (!authStore.user) authStore.fetchCurrentUser().catch(() => undefined)
       categoriesStore.fetchCategories().catch(() => undefined)
-      if (cartStore.cartSeq) cartStore.loadCart().catch(() => undefined)
+      cartStore.loadCart().catch(() => undefined)
     } else cartStore.clearCart()
   },
   { immediate: true },
@@ -49,10 +47,11 @@ async function logout() {
           <RouterLink to="/">도매 상품</RouterLink>
           <a href="/#new">신상품</a>
           <a href="/#benefits">거래 혜택</a>
-          <RouterLink to="/admin/supplier/products">관리자</RouterLink>
+          <RouterLink :to="adminPath">관리자</RouterLink>
         </nav>
         <div class="header-actions">
-          <RouterLink class="supplier-link" to="/admin/supplier/products">관리자 센터</RouterLink>
+          <RouterLink class="supplier-link" :to="adminPath">관리자 센터</RouterLink>
+          <RouterLink v-if="authStore.isAuthenticated" class="supplier-link" to="/orders">주문 내역</RouterLink>
           <RouterLink class="header-cart" to="/cart" aria-label="장바구니">
             장바구니 <span v-if="cartStore.itemCount">{{ cartStore.itemCount }}</span>
           </RouterLink>

@@ -1,14 +1,30 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError } from '../services/httpClient'
 
+const REMEMBERED_USER_ID_KEY = 'commerce.rememberedUserId'
+const rememberedUserId = typeof localStorage === 'undefined'
+  ? ''
+  : localStorage.getItem(REMEMBERED_USER_ID_KEY) ?? ''
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
-const form = reactive({ userId: '', passwd: '' })
+const form = reactive({ userId: rememberedUserId, passwd: '' })
+const rememberUserId = ref(Boolean(rememberedUserId))
 const errorMessage = ref('')
+
+function updateRememberedUserId(userId: string) {
+  if (typeof localStorage === 'undefined') return
+  if (rememberUserId.value) localStorage.setItem(REMEMBERED_USER_ID_KEY, userId)
+  else localStorage.removeItem(REMEMBERED_USER_ID_KEY)
+}
+
+function handleRememberChange() {
+  if (!rememberUserId.value && typeof localStorage !== 'undefined') {
+    localStorage.removeItem(REMEMBERED_USER_ID_KEY)
+  }
+}
 
 async function submit() {
   errorMessage.value = ''
@@ -18,12 +34,11 @@ async function submit() {
   }
 
   try {
-    await authStore.login({ userId: form.userId.trim(), passwd: form.passwd })
-    await authStore.fetchCurrentUser().catch(() => null)
-    const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
-      ? route.query.redirect
-      : '/'
-    await router.push(redirect)
+    const userId = form.userId.trim()
+    await authStore.login({ userId, passwd: form.passwd })
+    await authStore.fetchCurrentUser()
+    updateRememberedUserId(userId)
+    await router.push(authStore.defaultLandingPath)
   } catch (cause) {
     if (cause instanceof ApiError && cause.status === 403) {
       errorMessage.value =
@@ -71,6 +86,10 @@ async function submit() {
             autocomplete="current-password"
             placeholder="비밀번호를 입력하세요"
           />
+        </label>
+        <label class="remember-user-id">
+          <input v-model="rememberUserId" type="checkbox" @change="handleRememberChange" />
+          <span>아이디 기억하기</span>
         </label>
         <button class="submit-button" type="submit" :disabled="authStore.loading">
           {{ authStore.loading ? '로그인 중...' : '로그인' }}

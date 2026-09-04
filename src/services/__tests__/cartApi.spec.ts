@@ -7,57 +7,67 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { 'Content-Type': 'application/json' },
   })
 
+const cart = {
+  userSeq: 5,
+  buyer: { userSeq: 5, name: '도매 사용자', phone: '01000000000', businessProfileSeq: null, businessNumber: null, companyName: null, representativeName: null, retailStoreSeq: null, retailStoreName: null, salesChannel: null },
+  wholesales: [],
+  totalQuantity: 0,
+  totalAmount: 0,
+}
+
 describe('cartApi', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('장바구니 목록을 cartSeq 경로와 Bearer 인증으로 조회한다', async () => {
-    const cart = {
-      cartSeq: 12,
-      retailStoreSeq: 7,
-      items: [],
-      totalQuantity: 0,
-      totalAmount: 0,
-      createdAt: '',
-      updatedAt: '',
-    }
+  it('로그인 사용자의 장바구니를 Bearer 인증으로 조회한다', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(cart))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(cartApi.list('token', 12)).resolves.toEqual(cart)
+    const result = await cartApi.list('token')
+    expect(result).toEqual(cart)
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/carts/12/items'),
+      expect.stringContaining('/api/v1/carts'),
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer token' }),
       }),
     )
+    expect(String(fetchMock.mock.calls[0]![0])).not.toContain('/carts/')
+    expect(result.buyer.retailStoreSeq).toBeNull()
   })
 
-  it('variant 식별자로 상품을 추가한다', async () => {
+  it('사용자나 매장 식별자 없이 variant 상품을 추가한다', async () => {
     const payload = { productSeq: 101, variantSeq: 1001, quantity: 2 }
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse({ seq: 3 }, 201))
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(cart, 201))
     vi.stubGlobal('fetch', fetchMock)
 
-    await cartApi.add('token', 12, payload)
+    await expect(cartApi.add('token', payload)).resolves.toEqual(cart)
 
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/carts/12/items'),
+      expect.stringContaining('/api/v1/carts'),
       expect.objectContaining({ method: 'POST', body: JSON.stringify(payload) }),
     )
   })
 
-  it('수량은 PUT으로 수정하고 삭제 204는 body 없이 처리한다', async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(jsonResponse({ seq: 3, quantity: 4 }))
-      .mockResolvedValueOnce(jsonResponse(undefined, 204))
+  it('CartItem.seq를 경로 식별자로 사용해 수량을 PUT 수정한다', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(cart))
     vi.stubGlobal('fetch', fetchMock)
 
-    await cartApi.updateQuantity('token', 12, 3, { quantity: 4 })
-    await expect(cartApi.remove('token', 12, 3)).resolves.toBeUndefined()
+    await expect(cartApi.updateQuantity('token', 31, { quantity: 4 })).resolves.toEqual(cart)
 
-    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/carts/31'),
       expect.objectContaining({ method: 'PUT', body: JSON.stringify({ quantity: 4 }) }),
     )
-    expect(fetchMock.mock.calls[1]?.[1]).toEqual(expect.objectContaining({ method: 'DELETE' }))
+  })
+
+  it('CartItem.seq로 삭제하고 204 body를 파싱하지 않는다', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(undefined, 204))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(cartApi.remove('token', 31)).resolves.toBeUndefined()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/carts/31'),
+      expect.objectContaining({ method: 'DELETE' }),
+    )
   })
 })

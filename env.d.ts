@@ -7,7 +7,6 @@ interface ImportMetaEnv {
   readonly VITE_MODE?: string
   readonly VITE_URL?: string
   readonly VITE_USE_MOCK_API?: 'true' | 'false'
-  readonly VITE_CART_SEQ?: string
 }
 
 interface ImportMeta {

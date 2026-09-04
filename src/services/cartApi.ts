@@ -1,39 +1,33 @@
-import type { Cart, CartItem, CartItemAddRequest, CartItemUpdateRequest } from '../types/cart'
+import type { Cart, CartItemAddRequest, CartItemUpdateRequest } from '../types/cart'
 import { apiRequest } from './httpClient'
 
 const bearerHeaders = (accessToken: string) => ({ Authorization: `Bearer ${accessToken}` })
-const cartItemsPath = (cartSeq: number) => `/carts/${cartSeq}/items`
 
 export const cartApi = {
-  list(accessToken: string, cartSeq: number) {
-    return apiRequest<Cart>(cartItemsPath(cartSeq), {
+  list(accessToken: string) {
+    return apiRequest<Cart>('/carts', {
       headers: bearerHeaders(accessToken),
     })
   },
 
-  add(accessToken: string, cartSeq: number, payload: CartItemAddRequest) {
-    return apiRequest<CartItem>(cartItemsPath(cartSeq), {
+  add(accessToken: string, payload: CartItemAddRequest) {
+    return apiRequest<Cart>('/carts', {
       method: 'POST',
       headers: bearerHeaders(accessToken),
       body: JSON.stringify(payload),
     })
   },
 
-  updateQuantity(
-    accessToken: string,
-    cartSeq: number,
-    cartItemSeq: number,
-    payload: CartItemUpdateRequest,
-  ) {
-    return apiRequest<CartItem>(`${cartItemsPath(cartSeq)}/${cartItemSeq}`, {
+  updateQuantity(accessToken: string, cartSeq: number, payload: CartItemUpdateRequest) {
+    return apiRequest<Cart>(`/carts/${cartSeq}`, {
       method: 'PUT',
       headers: bearerHeaders(accessToken),
       body: JSON.stringify(payload),
     })
   },
 
-  remove(accessToken: string, cartSeq: number, cartItemSeq: number) {
-    return apiRequest<void>(`${cartItemsPath(cartSeq)}/${cartItemSeq}`, {
+  remove(accessToken: string, cartSeq: number) {
+    return apiRequest<void>(`/carts/${cartSeq}`, {
       method: 'DELETE',
       headers: bearerHeaders(accessToken),
     })

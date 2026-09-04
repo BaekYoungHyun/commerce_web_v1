@@ -24,7 +24,8 @@ describe('catalogProducts store', () => {
   it('상품 상세를 서버에서 조회해 현재 상품에 저장한다', async () => {
     const product = {
       seq: 31,
-      wholesaleStoreId: 2,
+      wholesaleStoreSeq: 2,
+      wholesaleStoreName: '테스트 도매상',
       categorySeq: 8,
       name: '도매 셔츠',
       description: '상품 설명',

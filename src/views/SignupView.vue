@@ -3,12 +3,13 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ApiError } from '../services/httpClient'
+import type { BusinessType } from '../types/userType'
 
-type FieldErrors = Partial<Record<'userId' | 'passwd' | 'phone' | 'name', string>>
+type FieldErrors = Partial<Record<'userId' | 'passwd' | 'phone' | 'name' | 'businessType', string>>
 
 const router = useRouter()
 const authStore = useAuthStore()
-const form = reactive({ userId: '', passwd: '', phone: '', name: '' })
+const form = reactive({ userId: '', passwd: '', phone: '', name: '', businessType: 'RETAIL' as BusinessType })
 const fieldErrors = reactive<FieldErrors>({})
 const errorMessage = ref('')
 const successMessage = ref('')
@@ -42,6 +43,7 @@ async function submit() {
       passwd: form.passwd,
       phone: form.phone.trim(),
       name: form.name.trim(),
+      businessType: form.businessType,
     })
     successMessage.value = '회원가입이 완료되었습니다. 로그인해 주세요.'
     window.setTimeout(() => router.push('/login'), 800)
@@ -72,6 +74,13 @@ async function submit() {
       </div>
       <form class="auth-form signup-form" @submit.prevent="submit">
         <h2>사업자 회원가입</h2>
+        <label
+          >사업자 유형
+          <select v-model="form.businessType" required>
+            <option value="RETAIL">셀러(소매)</option>
+            <option value="WHOLESALE">도매</option>
+          </select>
+        </label>
         <label
           >아이디
           <input

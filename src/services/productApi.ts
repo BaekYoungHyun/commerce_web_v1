@@ -27,14 +27,14 @@ export const productApi = {
     })
   },
 
-  detail(accessToken: string, productId: number) {
-    return apiRequest<AdminProduct>(`/products/${productId}`, {
+  detail(accessToken: string, productSeq: number) {
+    return apiRequest<AdminProduct>(`/products/${productSeq}`, {
       headers: bearerHeaders(accessToken),
     })
   },
 
-  createView(accessToken: string, productId: number, payload: ProductViewCreateRequest) {
-    return apiRequest<ProductView>(`/products/${productId}/views`, {
+  createView(accessToken: string, productSeq: number, payload: ProductViewCreateRequest) {
+    return apiRequest<ProductView>(`/products/${productSeq}/views`, {
       method: 'POST',
       headers: bearerHeaders(accessToken),
       body: JSON.stringify(payload),
@@ -49,8 +49,8 @@ export const productApi = {
     })
   },
 
-  update(accessToken: string, productId: number, payload: AdminProductUpdateRequest) {
-    return apiRequest<AdminProduct>(`/products/${productId}`, {
+  update(accessToken: string, productSeq: number, payload: AdminProductUpdateRequest) {
+    return apiRequest<AdminProduct>(`/products/${productSeq}`, {
       method: 'PUT',
       headers: bearerHeaders(accessToken),
       body: JSON.stringify(payload),
