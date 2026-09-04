@@ -47,7 +47,7 @@
 - 스타일: 전역 CSS (`src/assets/main.css`, `src/assets/base.css`)
 - 테스트: Vitest, Vue Test Utils
 - 코드 검사: vue-tsc, ESLint, Oxlint, Prettier
-- 요구 Node.js 버전: `^22.18.0` 또는 `>=24.12.0`
+- 요구 Node.js 버전: `24.x`. Vercel에서 향후 새 메이저 버전으로 자동 상승하지 않도록 24 계열로 고정한다. (2026-09-04, `COMMERCE_VercelNodeVersion_001`)
 
 ## 4. 현재 구현 상태
 
