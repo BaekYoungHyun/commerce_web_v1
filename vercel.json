@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm ci --prefer-offline --no-audit --no-fund",
   "rewrites": [
     { "source": "/dev-api-v1/:path*", "destination": "http://134.185.105.148:8780/:path*" },
     { "source": "/stg-api-v1/:path*", "destination": "http://134.185.105.148:8880/:path*" },
