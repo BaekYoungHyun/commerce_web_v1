@@ -157,6 +157,7 @@ onMounted(initialize)
               <th>카테고리</th>
               <th>상품명</th>
               <th>최소 주문</th>
+              <th>가용 재고</th>
               <th>상태</th>
               <th>등록일</th>
               <th>수정일</th>
@@ -165,7 +166,7 @@ onMounted(initialize)
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="11" class="admin-empty">상품 목록을 불러오는 중입니다.</td>
+              <td colspan="12" class="admin-empty">상품 목록을 불러오는 중입니다.</td>
             </tr>
             <tr v-for="product in products" v-else :key="product.seq">
               <td>
@@ -203,6 +204,7 @@ onMounted(initialize)
                 >
               </td>
               <td>{{ product.minOrderQuantity }}개</td>
+              <td>{{ product.totalStockQuantity.toLocaleString() }}개</td>
               <td>
                 <i class="admin-status">{{ productStatusLabel(product.status) }}</i>
               </td>
@@ -219,7 +221,7 @@ onMounted(initialize)
               </td>
             </tr>
             <tr v-if="!loading && products.length === 0">
-              <td colspan="11" class="admin-empty">조건에 맞는 상품이 없습니다.</td>
+              <td colspan="12" class="admin-empty">조건에 맞는 상품이 없습니다.</td>
             </tr>
           </tbody>
         </table>

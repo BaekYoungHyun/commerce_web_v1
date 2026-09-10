@@ -8,6 +8,11 @@ export interface DeliveryCompanyOption {
 
 export interface WholesaleOwnedStore {
   seq: number
+  businessProfileSeq: number
+  businessProfileName: string | null
+  userSeq: number | null
+  userId: string | null
+  userName: string | null
   storeName: string
   status: string
 }

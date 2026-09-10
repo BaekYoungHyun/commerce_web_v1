@@ -12,7 +12,7 @@ const cartStore = useCartStore()
 const authStore = useAuthStore()
 const categoriesStore = useCategoriesStore()
 const isAdminLayout = computed(() => route.meta.layout === 'admin')
-const adminPath = computed(() => authStore.isAuthenticated ? authStore.adminEntryPath : '/login')
+const adminPath = computed(() => (authStore.isAuthenticated ? authStore.adminEntryPath : '/login'))
 
 watch(
   () => authStore.accessToken,
@@ -50,23 +50,61 @@ async function logout() {
           <RouterLink :to="adminPath">관리자</RouterLink>
         </nav>
         <div class="header-actions">
-          <RouterLink class="supplier-link" :to="adminPath">관리자 센터</RouterLink>
-          <RouterLink v-if="authStore.isAuthenticated" class="supplier-link" to="/orders">주문 내역</RouterLink>
-          <RouterLink class="header-cart" to="/cart" aria-label="장바구니">
-            장바구니 <span v-if="cartStore.itemCount">{{ cartStore.itemCount }}</span>
+          <RouterLink
+            v-if="authStore.isAuthenticated && authStore.isRetail"
+            class="seller-login-info"
+            to="/admin/seller/dashboard"
+            aria-label="셀러 관리자 대시보드로 이동"
+          >
+            <span>{{ authStore.user?.name?.slice(0, 1) || 'S' }}</span>
+            <div>
+              <strong>{{ authStore.user?.name || '셀러 사용자' }}</strong>
+              <small>{{ authStore.user?.userId || '로그인 정보 확인 중' }} · 셀러</small>
+            </div>
           </RouterLink>
-          <button v-if="authStore.isAuthenticated" class="login-button" type="button" @click="logout">
+          <RouterLink class="supplier-link" :to="adminPath">관리자 센터</RouterLink>
+          <RouterLink v-if="authStore.isAuthenticated" class="supplier-link" to="/orders"
+            >주문 내역</RouterLink
+          >
+          <button
+            v-if="authStore.isAuthenticated"
+            class="login-button"
+            type="button"
+            @click="logout"
+          >
             로그아웃
           </button>
           <RouterLink v-else class="login-button" to="/login">로그인</RouterLink>
-          <button class="menu-button" aria-label="메뉴 열기" @click="menuOpen = !menuOpen">☰</button>
+          <RouterLink class="header-cart" to="/cart" aria-label="장바구니">
+            장바구니 <span v-if="cartStore.itemCount">{{ cartStore.itemCount }}</span>
+          </RouterLink>
+          <button class="menu-button" aria-label="메뉴 열기" @click="menuOpen = !menuOpen">
+            ☰
+          </button>
         </div>
       </div>
       <div class="header-category-area">
-        <nav v-if="authStore.accessToken && categoriesStore.categories.length" class="header-category-primary" aria-label="1뎁스 상품 카테고리">
-          <RouterLink to="/categories">전체</RouterLink><RouterLink v-for="category in categoriesStore.categories" :key="category.seq" :to="{ path: `/categories/${encodeURIComponent(category.name)}`, query: { categorySeq: category.seq } }">{{ category.name }}</RouterLink>
+        <nav
+          v-if="authStore.accessToken && categoriesStore.categories.length"
+          class="header-category-primary"
+          aria-label="1뎁스 상품 카테고리"
+        >
+          <RouterLink to="/categories">전체</RouterLink
+          ><RouterLink
+            v-for="category in categoriesStore.categories"
+            :key="category.seq"
+            :to="{
+              path: `/categories/${encodeURIComponent(category.name)}`,
+              query: { categorySeq: category.seq },
+            }"
+            >{{ category.name }}</RouterLink
+          >
         </nav>
-        <div v-else class="header-category-status"><span v-if="categoriesStore.loading">카테고리를 불러오는 중...</span><span v-else-if="categoriesStore.error">카테고리를 불러오지 못했습니다.</span><RouterLink v-else to="/login">로그인 후 전체 카테고리 보기 →</RouterLink></div>
+        <div v-else class="header-category-status">
+          <span v-if="categoriesStore.loading">카테고리를 불러오는 중...</span
+          ><span v-else-if="categoriesStore.error">카테고리를 불러오지 못했습니다.</span
+          ><RouterLink v-else to="/login">로그인 후 전체 카테고리 보기 →</RouterLink>
+        </div>
       </div>
     </header>
 
@@ -75,7 +113,9 @@ async function logout() {
     <footer v-if="!isAdminLayout">
       <RouterLink class="brand footer-brand" to="/"><span>YH</span>MARKET</RouterLink>
       <p>도매와 셀러의 성장을 연결하는 B2B 패션 마켓</p>
-      <div><a href="#">이용약관</a><a href="#">개인정보처리방침</a><a href="#">사업자 고객센터</a></div>
+      <div>
+        <a href="#">이용약관</a><a href="#">개인정보처리방침</a><a href="#">사업자 고객센터</a>
+      </div>
       <small>© 2026 YH MARKET BUSINESS. All rights reserved.</small>
     </footer>
   </div>

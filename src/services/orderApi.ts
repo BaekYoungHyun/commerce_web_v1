@@ -1,5 +1,5 @@
 import { apiRequest } from './httpClient'
-import type { CartOrderCreateRequest, Order } from '../types/order'
+import type { CartOrderCreateRequest, Order, OrderCancelResponse } from '../types/order'
 import type { PageQuery, PageResponse } from '../types/page'
 
 const headers = (token: string) => ({ Authorization: `Bearer ${token}` })
@@ -27,6 +27,12 @@ export const orderApi = {
   },
   myOrder(token: string, seq: number) {
     return apiRequest<Order>(`/orders/${seq}`, { headers: headers(token) })
+  },
+  cancel(token: string, seq: number) {
+    return apiRequest<OrderCancelResponse>(`/seller/orders/${seq}/cancel`, {
+      method: 'POST',
+      headers: headers(token),
+    })
   },
   adminOrders(token: string, filters: OrderListQuery = {}) {
     return apiRequest<PageResponse<Order>>(`/admin/orders${query(filters)}`, {

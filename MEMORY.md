@@ -2,10 +2,25 @@
 
 > 이 문서는 `AGENTS.md`에 따라 프로젝트의 방향, 현재 상태, 작업 이력, API 연동 정보를 지속적으로 기록한다. 이후 작업을 시작하기 전에 항상 확인하고, 변경 사항이 생기면 함께 갱신한다.
 
-- API 연동의 확정 계약은 `docs/frontend-api-guide.md`를 우선 참조한다.
-- `docs/frontend-api-guide.md`의 현재 최신 확정 계약일은 2026-08-24이며, 상단 최종 갱신일과 변경 이력을 일치시켰다. (2026-08-24 확인)
+- 모든 작업 전 백엔드 원본 `/Users/yh.baek/work/workspace_BE/commerce/docs/frontend-api-guide.md`를 먼저 검토한다. API 연동은 프론트의 `docs/frontend-api-guide.md`와 대조하고 백엔드 원본 계약을 우선한다.
+- `docs/frontend-api-guide.md`의 현재 최신 확정 계약일은 2026-09-08이며, 백엔드 원본과 동기화했다. (2026-09-08 확인)
+- 2026-09-07 보안·주문 계약에 따라 상품 조회 로그는 body 없이 토큰 사용자를 기록하고, 셀러 주문 상세에 주문 취소와 품목 클레임 접수를 연결했다. 도매 정산 산출 요청 함수는 추가했으며 미확정 성공 응답 DTO는 `docs/api-guide.md` API-013에 기록했다. (`COMMERCE_ApiGuideSync_001`)
+- 백엔드 Controller·Service를 확인해 정산 산출의 `201` 및 전체 `WholesaleSettlement[]` 응답을 확정하고 도매 정산 목록·산출 화면을 추가했다. API-013은 해결 처리했다. (`COMMERCE_ApiGuideSync_002`)
+- 도매 반품·취소 클레임 목록과 상태 필터, `접수 → 승인 → 완료` 또는 `접수 → 거절` 처리를 `/admin/supplier/claims`에 구현했다. 소유 매장 범위와 `409 O005` 오류는 서버 계약을 따른다. (`COMMERCE_ApiGuideSync_003`)
+- 도매 관리 가이드의 남은 확정 범위에 따라 거래처, 사업자·매장 수정, 정산계좌 조회·저장 화면을 구현했다. (`COMMERCE_ApiGuideSync_005`)
+- 2026-09-08 DB 기반 2뎁스 메뉴 계약에 따라 도매·셀러 관리자 사이드바는 `/menus/navigation` 응답을 우선 사용하며, API 실패 시 기존 역할별 메뉴를 fallback으로 유지한다. (`COMMERCE_ApiGuideSync_006`)
+- API 메뉴 경로 오류 수정을 위해 실제 Vue Router 기준 도매 13개·셀러 10개 메뉴의 정확한 `routePath`와 그룹 구조를 `docs/api-guide.md` API-014에 백엔드 전달용으로 정리했다. (`COMMERCE_MenuRouteContract_001`)
+- 셀러 관리자 장바구니를 관리자 공통 헤더·요약·패널 구조로 재구성하고, 상품 탐색을 상품 관리와 같은 요약·검색·테이블·페이지네이션 구조로 통일했다. (`COMMERCE_SellerAdminUX_001`)
+- 셀러 관리자 장바구니를 상품 관리와 같은 전체 폭 목록 레이아웃으로 확장하고, 선택 금액·배송 정보·주문 버튼을 상품 목록 상단의 주문 패널로 배치했다. 주문 생성과 장바구니 기능은 기존 로직을 유지한다. (`COMMERCE_SellerAdminUX_002`)
+- 셀러 관리자 장바구니는 전체 폭 관리자 화면 안에서 상품 목록을 왼쪽 가변 영역, 주문 정보를 오른쪽 340px 고정 영역으로 배치한다. 900px 이하에서는 한 열로 전환하며 기존 주문 기능은 유지한다. (`COMMERCE_SellerAdminUX_003`)
+- 찜 등록은 백엔드 계약의 필수 `retailStoreSeq`를 장바구니에서 간접 조회하지 않고 `/seller/business`의 연결 매장에서 선택해 전송한다. 연결 매장이 없으면 사업자·매장 화면으로 안내하며, 찜 목록은 상품 탐색과 같은 요약·검색·테이블 구조를 사용한다. (`COMMERCE_SellerWishlist_001`)
+- 2026-09-09 백엔드 원본 가이드에 추가된 도매 소유 매장·셀러 연결 매장의 `businessProfileSeq`, `businessProfileName`, `userSeq`, `userId`, `userName`을 타입과 화면에 반영했다. (`COMMERCE_BusinessTerminology_001`)
+- 서비스 관리자 도매·소매 매장 목록에 사용자 ID·사용자명·사업자 ID를 추가하고 사업자 ID를 사업자명 바로 앞에 배치했다. `companyName`은 사업자명, `storeName`은 사업장명으로 구분하며, 관리자 매장 API의 사용자 필드 누락은 API-015로 백엔드 확정을 요청했다. (`COMMERCE_BusinessTerminology_002`)
+- 2026-09-10 백엔드 상품 계약의 상품 총 가용 재고, SKU별 가용·예약 재고, 찜 상품 총 가용 재고 필드를 타입과 상품 관리·탐색·상세·찜 화면에 반영했다. 상품 선택 수량은 SKU 가용 재고를 넘지 못한다. (`COMMERCE_ApiGuideSync_008`)
+- 셀러 서비스 공통 헤더에 현재 로그인 사용자의 이름·로그인 ID·셀러 역할을 표시하고 셀러 관리자 대시보드로 연결했다. (`COMMERCE_SellerHeader_001`)
+- 셀러 서비스 헤더의 장바구니를 로그인/로그아웃 영역 뒤로 이동해 데스크톱 우측 끝에 배치했다. (`COMMERCE_SellerHeader_002`)
 - 2026-08-24 재검증에서 관리자 사용자 목록 설명의 기존 배열 표현을 공통 `PageResponse<AdminUser>` 계약으로 바로잡았으며, 현재 서비스·스토어의 페이지 응답 처리와 일치함을 확인했다.
-- 2026-08-24 도매 주문 확정 계약에 맞춰 주문 품목 옵션을 `sku`, `color`, `size` 고정 필드로 전환하고, 소매 매장명 `retailStoreName`과 구매처 상호 `buyerCompanyName`을 화면에 표시한다. 레거시 `CREATED`는 서버가 `PRODUCT_ORDERED`로 정규화하므로 프론트 호환 분기를 제거했으며, 품목 상태 변경 성공 시 응답의 전체 `WholesaleOrder`로 대상 주문을 교체한다.
+- 2026-08-24 도매 주문 확정 계약에 맞춰 주문 품목 옵션을 `sku`, `color`, `size` 고정 필드로 전환하고, 소매 매장명 `retailStoreName`과 구매처 사업자명 `buyerCompanyName`을 화면에 표시한다. 레거시 DB 상태 `CREATED`는 서버가 `PRODUCT_ORDERED`로 정규화하므로 프론트 호환 분기를 제거했으며, 품목 상태 변경 성공 시 응답의 전체 `WholesaleOrder`로 대상 주문을 교체한다.
 - 2026-08-24 목록 API 계약 변경에 따라 셀러·서비스 관리자 주문, 도매 주문·출고, 관리자 사용자·사업자·매장·택배사, 도매 재고·입고 목록을 공통 `PageResponse<T>`로 전환했다. 각 스토어는 `content`와 페이지 메타데이터를 분리해 보관하고 화면은 이전·다음 페이지와 전체 건수를 표시한다. 검색·필터를 새로 적용하면 0페이지부터 조회하며 카테고리·장바구니·소유 매장·활성 택배사 select 배열 계약은 유지한다.
 - API 작업 중 추가로 필요한 필드, 상태 전이, 권한, 검증 로직은 `docs/api-guide.md`에 요청 사항과 임시 처리를 기록한다.
 - 해당 계약이 확정되면 `docs/frontend-api-guide.md`와 구현을 갱신하고 `docs/api-guide.md` 항목을 `해결`로 변경한다.
@@ -217,7 +232,7 @@
 - 사용자 등록은 모든 필드가 필수이고, 수정 시 `passwd`를 생략하면 기존 비밀번호를 유지한다. 오류 `AU001`, `AU002`와 공통 `C001`을 화면 오류로 표시한다.
 - 서비스 관리자 등록·수정 화면의 모든 상태 입력은 select로 제공한다. 사용자 상태는 `PENDING`, `ACTIVE`, `SUSPENDED`, 매장 상태는 `ACTIVE`, `INACTIVE`, `SUSPENDED`를 사용하며 API에서 그 밖의 기존 값이 반환되면 수정 화면 select에 보존한다.
 - 대표 사용자 팝업은 `GET /admin/users`의 실제 사용자 목록을 SEQ·아이디·이름·연락처·상태로 검색해 선택한다.
-- 도매·소매 매장 등록·수정의 사업자 프로필은 ID를 직접 입력하지 않고 `GET /admin/business-profiles` 목록 팝업에서 사업자번호·상호·대표자·사용자·승인 상태로 검색해 선택한다.
+- 도매·소매 매장 등록·수정의 사업자 프로필은 ID를 직접 입력하지 않고 `GET /admin/business-profiles` 목록 팝업에서 사업자번호·사업자명·대표자·사용자·승인 상태로 검색해 선택한다.
 - 오류 코드는 `BP001`~`BP003`, `WS001`~`WS002`, `RS001`~`RS002`, 공통 `C001`/`C002`를 처리한다.
 
 ### 주문 API 계약
@@ -543,3 +558,34 @@
 ### 2026-09-04
 
 - Vercel 의존성 설치를 잠금 파일 기반 `npm ci`로 변경하고, 복원된 캐시를 우선 사용하며 배포 중 불필요한 audit·funding 요청을 생략하도록 설정했다. (`COMMERCE_VercelNodeVersion_002`)
+
+### 2026-09-07
+
+- 백엔드 `docs/frontend-api-guide.md`의 2026-09-07 계약을 프론트 우선 참조 문서와 동기화
+- 상품 조회 로그의 사용자 지정 body를 제거하고 응답 타입을 `userSeq`로 변경
+- 셀러 주문 취소, 품목 취소·반품 클레임 접수 API와 주문 상세 UI 구현
+- 도매 정산 산출 요청 계약을 서비스에 추가하고 미확정 성공 응답 DTO를 API-013으로 기록
+- 역할별 라우트 접근은 로그인 응답의 역할·관리 범위 기반 기존 가드를 유지하고, `403`에서 인증 정보를 삭제하지 않는 기존 동작을 확인 (`COMMERCE_ApiGuideSync_001`)
+- 백엔드 실제 정산 산출 응답을 기준으로 `/admin/supplier/settlements` 정산 관리 화면, 목록 조회, 기간·소유 매장별 산출과 결과 갱신을 구현 (`COMMERCE_ApiGuideSync_002`)
+- 도매 관리자 `반품·취소` 메뉴와 `/admin/supplier/claims` 화면을 활성화하고 클레임 상태별 조회, 승인·거절·완료 전이를 구현 (`COMMERCE_ApiGuideSync_003`)
+- 도매 관리자 거래처·사업자/매장 메뉴를 활성화하고 정산계좌 관리까지 연결 (`COMMERCE_ApiGuideSync_005`)
+- 도매·셀러 관리자 메뉴를 `scope=WHOLESALE|RETAIL` DB 2뎁스 navigation API 기반으로 전환하고 서비스 관리자 메뉴와 장애 fallback은 정적으로 유지 (`COMMERCE_ApiGuideSync_006`)
+- DB `menu.route_path` 교정용 프론트 라우터 매핑표와 API 응답 검증 조건을 API-014에 기록 (`COMMERCE_MenuRouteContract_001`)
+- 셀러 관리자 장바구니와 상품 탐색 화면을 기존 관리자 목록 화면의 정보 계층과 테이블 중심 UI에 맞게 재구성 (`COMMERCE_SellerAdminUX_001`)
+- 셀러 관리자 장바구니를 전체 폭으로 확장하고 주문 실행 패널을 목록 상단으로 이동해 상품 관리 화면과 같은 목록 중심 사용 흐름으로 개선 (`COMMERCE_SellerAdminUX_002`)
+- 사용자 피드백에 따라 상품 목록은 왼쪽 가변 폭, 주문 실행 패널은 오른쪽 고정 폭으로 재배치하고 좁은 화면에서만 한 열로 전환 (`COMMERCE_SellerAdminUX_003`)
+
+### 2026-09-09
+
+- 모든 작업 전에 백엔드 원본 API 가이드를 먼저 검토하도록 저장소 지침과 메모를 갱신
+- 셀러 상품 상세에서 연결 소매 매장을 직접 조회·선택해 찜 등록 요청의 `retailStoreSeq`로 전송하고, 미연결 상태에는 사업자·매장 확인 경로를 안내. 찜 상품 화면은 상품 탐색과 동일한 요약·매장/상품 검색·테이블 UI로 재구성 (`COMMERCE_SellerWishlist_001`)
+- 사업자 프로필의 `companyName` 노출 용어를 `사업자명`으로 통일 (`COMMERCE_BusinessTerminology_001`)
+- 백엔드 원본 가이드의 도매 소유 매장·셀러 연결 매장 사용자 식별 필드를 프론트 계약·타입과 매장 선택 UI에 추가 (`COMMERCE_BusinessTerminology_001`)
+- 서비스 관리자 도매·소매 매장 목록에 사업자 ID·사용자 ID·사용자명 열을 추가하고 `사업자명`·`사업장명`을 별도 열로 구분. 관리자 매장 응답 필드 누락은 API-015로 기록 (`COMMERCE_BusinessTerminology_002`)
+
+### 2026-09-10
+
+- 백엔드 원본 가이드의 `Product.totalStockQuantity`, `ProductVariant.availableQuantity`·`reservedQuantity`, `SellerWishlist.total_stock_quantity` 계약을 프론트 문서·타입과 화면에 동기화
+- 상품 관리·탐색·상세·찜 목록에 가용 재고를 표시하고 상품 상세 SKU 선택 수량을 가용 재고 이내로 제한 (`COMMERCE_ApiGuideSync_008`)
+- 셀러 서비스 화면 상단에 로그인 사용자 이름·ID·역할을 노출하고 클릭 시 셀러 관리자 대시보드로 이동하도록 적용 (`COMMERCE_SellerHeader_001`)
+- 셀러 서비스 헤더 장바구니를 로그인 영역 오른쪽으로 이동하고 기존 수량 배지·링크 기능 유지 (`COMMERCE_SellerHeader_002`)

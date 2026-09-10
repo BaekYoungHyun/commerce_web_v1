@@ -1,6 +1,6 @@
 # Commerce 프론트엔드 API 개발 가이드
 
-> 최종 갱신일: 2026-08-25  
+> 최종 갱신일: 2026-09-07  
 > 대상 API: Commerce Backend `/api/v1`  
 > 문서 상태: 현재 백엔드 구현 기준
 
@@ -51,7 +51,28 @@ Authorization: Bearer {accessToken}
 
 토큰 앞의 `Bearer`와 토큰 사이에는 공백이 하나 필요하다.
 
-### 2.4 날짜 및 시간
+### 2.4 역할별 접근 계약
+
+2026-09-07 보안 기준선부터 다음 역할 계약을 적용한다.
+
+| API | `RETAIL` | `WHOLESALE` | `ADMIN` / `SYSTEMADMIN` |
+|---|---:|---:|---:|
+| 카테고리 조회 | 허용 | 허용 | 허용 |
+| 카테고리 등록·수정 | `403` | `403` | 허용 |
+| 상품 조회·조회 로그 | 허용 | 본인 소유 매장 범위 | 허용 |
+| 상품 등록·수정 | `403` | 본인 소유 매장만 허용 | 허용 |
+| 장바구니·셀러 주문 | 허용 | `403` | 허용 |
+| `/api/v1/seller/**` | 허용 | `403` | 허용 |
+| `/api/v1/wholesale/**` | `403` | 허용 | 허용 |
+| `/api/v1/admin/**` | `403` | `403` | 허용 |
+
+- 로그인하지 않은 요청은 `401`, 로그인했지만 역할이 맞지 않는 요청은 `403`으로 처리한다.
+- 프론트 메뉴 숨김은 편의 기능일 뿐 보안 수단이 아니다. `403` 응답을 공통 처리해야 한다.
+- `403` 수신 시 토큰을 자동 삭제하지 않는다. 권한 부족 안내 후 허용된 화면으로 이동한다.
+- `401` 수신 시 토큰 재발급을 한 번 시도하고, 실패하면 인증 정보를 제거한 뒤 로그인 화면으로 이동한다.
+- 브라우저 요청 Origin은 서버의 환경별 allowlist에 등록돼 있어야 한다. 등록되지 않은 Origin의 브라우저 요청은 CORS 단계에서 차단된다.
+
+### 2.5 날짜 및 시간
 
 현재 사용자 API의 날짜·시간 필드는 Java `LocalDateTime` 기반이며 UTC offset이 없는 ISO-8601 문자열로 전달된다.
 
@@ -65,7 +86,7 @@ Authorization: Bearer {accessToken}
 - 문자열 끝에 `Z` 또는 `+09:00`이 없으므로 임의로 UTC로 해석하지 않는다.
 - 화면 표시는 서비스 기준 시간대인 `Asia/Seoul`로 취급한다.
 
-### 2.5 식별자 필드 명명 규칙
+### 2.6 식별자 필드 명명 규칙
 
 - 로그인 아이디인 `userId`만 `Id` 접미사를 유지한다.
 - DB의 관계 참조는 `*_seq`, JSON/TypeScript의 관계 참조는 `*Seq`를 사용한다.
@@ -643,6 +664,7 @@ export interface CategoryCreateRequest {
 - 하위 카테고리는 상위 카테고리의 `seq`를 `parentSeq`로 전송한다.
 - `depth`는 서버 DB 트리거가 자동 계산하므로 전송하지 않는다.
 - 성공 HTTP Status: `201`
+- 권한: `ROLE_ADMIN`, `ROLE_SYSTEMADMIN`만 허용한다. 그 외 로그인 사용자는 `403`이다.
 
 ### 6.4 카테고리 수정
 
@@ -657,6 +679,7 @@ Content-Type: application/json
 - 부모 변경 시 해당 카테고리와 모든 하위 카테고리의 depth가 자동 재계산된다.
 - 자기 자신 또는 자신의 하위 카테고리를 부모로 지정할 수 없다.
 - 성공 HTTP Status: `200`
+- 권한: `ROLE_ADMIN`, `ROLE_SYSTEMADMIN`만 허용한다. 그 외 로그인 사용자는 `403`이다.
 
 ### 6.5 카테고리 오류 처리
 
@@ -676,12 +699,12 @@ Content-Type: application/json
 
 - Base path: `/api/v1/products`
 - 인증: 목록·상세·등록·수정 모두 필수. `Authorization: Bearer {accessToken}`을 전송한다.
-- 권한: 로그인 사용자라면 접근 가능하다. 단, `ROLE_WHOLESALE` 사용자는 자신이 소유한 도매 매장 범위로 상품 목록·상세·등록·수정이 제한된다. `ROLE_ADMIN`/`ROLE_SYSTEMADMIN`이 함께 있으면 전체 관리 범위를 유지하며, `ROLE_RETAIL`의 상품 탐색 범위도 제한하지 않는다.
+- 권한: 조회는 모든 로그인 역할에 허용한다. 등록·수정은 `ROLE_WHOLESALE`, `ROLE_ADMIN`, `ROLE_SYSTEMADMIN`만 허용한다. `ROLE_WHOLESALE` 사용자는 자신이 소유한 도매 매장 범위로 목록·상세·등록·수정이 제한된다. `ROLE_ADMIN`/`ROLE_SYSTEMADMIN`은 전체 관리 범위를 유지하고 `ROLE_RETAIL`은 조회만 가능하다.
 - 등록·수정 Content-Type: `application/json`. 이미지 파일이 아니라 업로드 완료된 URL을 전송한다.
 - 개발용 `SEED-*` 상품과 도매사별 로컬 상품 이미지는 DB에
   `/mock/products/**` 상대 경로로 저장되지만, API 응답의 `imageUrl`은 현재 API 서버 origin이
-  포함된 절대 URL로 제공된다. `/mock/**` 정적 이미지는 인증 헤더 없이 조회할 수 있으므로
-  프론트는 응답값을 그대로 `<img src>`에 사용한다.
+  포함된 절대 URL로 제공된다. `/mock/**` 정적 이미지는 `PUBLIC_API_DOCS=true`인 로컬·개발
+  환경에서만 인증 헤더 없이 조회할 수 있다. 운영에서는 외부 이미지 저장소 URL을 사용해야 한다.
 - 성공 응답: 공통 `ApiResponse`로 감싸지 않은 DTO 원문이다.
 - 금액: JSON number이며 프론트에서는 원 단위 정수 입력을 권장한다.
 - 상태 허용 목록: 아직 enum으로 확정되지 않았다. 현재 기본값은 상품 `DRAFT`, SKU `ACTIVE`다.
@@ -703,6 +726,7 @@ export interface Product {
   images: ProductImage[];
   options: ProductOption[];
   variants: ProductVariant[];
+  totalStockQuantity: number;
   viewCount: number;
 }
 
@@ -728,6 +752,8 @@ export interface ProductVariant {
   supplyPrice: number;
   salePrice: number;
   status: string;
+  availableQuantity: number;
+  reservedQuantity: number;
 }
 
 export interface ProductPage {
@@ -1006,23 +1032,19 @@ export interface ProductUpdateRequest {
 ```http
 POST /api/v1/products/{productSeq}/views
 Authorization: Bearer {accessToken}
-Content-Type: application/json
 ```
 
 ```ts
-export interface ProductViewCreateRequest {
-  userId?: number | null;
-}
-
 export interface ProductView {
   seq: number;
-  userId: number | null;
+  userSeq: number;
   productSeq: number;
   viewedAt: string;
 }
 ```
 
-- 엔드포인트 인증은 필수지만 `userId` 필드는 nullable이다. 현재 서버는 토큰 사용자와 요청 `userId`의 일치 여부를 검증하거나 자동 설정하지 않는다.
+- 요청 body를 보내지 않는다. 서버가 Bearer 토큰의 로그인 사용자 `users.seq`를 `userSeq`로 기록한다.
+- 다른 사용자의 `userSeq`를 프론트에서 지정할 수 없다.
 - 성공 HTTP Status: `201`
 - 없는 상품은 HTTP `404`, 오류 코드 `P001`이다.
 - 등록된 로그 수는 상품 응답의 `viewCount`에 반영된다.
@@ -1488,7 +1510,24 @@ API는 준비 완료이면서 아직 출고에 배정되지 않은 상품만 준
 ```ts
 export interface WholesaleOwnedStore {
   seq: number;
+  businessProfileSeq: number;
+  businessProfileName: string | null;
+  userSeq: number | null;
+  userId: string | null;
+  userName: string | null;
   storeName: string;
+  status: string;
+}
+
+export interface SellerBusinessStore {
+  seq: number;
+  businessProfileSeq: number;
+  businessProfileName: string;
+  userSeq: number;
+  userId: string;
+  userName: string;
+  storeName: string;
+  salesChannel: string | null;
   status: string;
 }
 ```
@@ -1620,6 +1659,109 @@ const deliveryCompanies = await api.get<DeliveryCompanyOption[]>(
 
 주문 헤더의 집계 상태가 바뀔 때마다 `order_status_logs`에 변경 전·후 상태와 변경 사용자가
 기록된다. 한 주문에 여러 도매 매장이 포함된 경우 각 도매 매장은 자기 상품과 출고만 응답에서 본다.
+
+### 9.5 주문 취소
+
+```http
+POST /api/v1/seller/orders/{orderSeq}/cancel
+Authorization: Bearer {accessToken}
+```
+
+```ts
+export interface OrderCancelResponse {
+  seq: number;
+  orderNo: string;
+  status: 'CANCELED';
+  totalAmount: number;
+  restoredQuantity: number;
+}
+```
+
+- 취소 가능 상태는 `PRODUCT_ORDERED`, `PRODUCT_PREPARING`이다.
+- 취소 성공 시 품목 상태가 `CANCELED`로 바뀌고 예약 재고가 가용 재고로 복구된다.
+- 결제가 이미 승인된 주문의 금액 환불은 별도 환불 API를 호출해야 한다.
+- 배송 준비 이후 또는 출고 이후 주문은 이 API로 취소할 수 없다.
+
+### 9.6 셀러 클레임 접수
+
+```ts
+export type ClaimStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+
+export interface WholesaleClaim {
+  seq: number;
+  claim_type: 'CANCEL' | 'RETURN';
+  quantity: number;
+  reason: string | null;
+  status: ClaimStatus;
+  created_at: string;
+  processed_at: string | null;
+  order_item_seq: number;
+  product_name_snapshot: string;
+  order_seq: number;
+  order_no: string;
+  wholesale_store_seq: number;
+  store_name: string;
+}
+```
+
+```http
+POST /api/v1/seller/claims
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+```ts
+export interface ClaimCreateRequest {
+  orderItemSeq: number;
+  claimType: 'CANCEL' | 'RETURN';
+  quantity: number;
+  reason?: string | null;
+}
+
+export interface Claim {
+  seq: number;
+  orderItemSeq: number;
+  claimType: 'CANCEL' | 'RETURN';
+  quantity: number;
+  reason: string | null;
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
+  requestedBy: number;
+  createdAt: string;
+}
+```
+
+- 로그인 사용자의 주문 품목만 접수할 수 있다.
+- 처리 중인 클레임 수량의 합은 주문 수량을 초과할 수 없다.
+- 접수 성공 상태는 `REQUESTED`이며, 도매 관리자가 후속 상태를 변경한다.
+- `CANCELED`, `SHIPPED` 품목은 클레임 접수가 거부된다.
+
+### 9.7 도매 정산 산출 생성
+
+```http
+POST /api/v1/wholesale/management/settlements/generate
+Authorization: Bearer {accessToken}
+Content-Type: application/json
+```
+
+```ts
+export interface SettlementGenerateRequest {
+  periodStart: string; // yyyy-MM-dd
+  periodEnd: string;   // yyyy-MM-dd
+  wholesaleStoreSeq?: number;
+}
+```
+
+- `WHOLESALE` 또는 관리자 권한이 필요하다.
+- `wholesaleStoreSeq`를 생략하면 로그인 사용자의 모든 도매 매장을 대상으로 한다.
+- 동일 매장·동일 기간의 정산이 이미 있으면 중복 생성하지 않는다.
+- 현재 산출 대상은 `payments.status = PAID`인 주문 품목이며, 초기 수수료율은 `0`으로 생성된다.
+- 실제 PG 승인·환불·수수료 정책이 연결되기 전에는 지급 확정 기능으로 사용하지 않는다.
+
+### 9.8 결제·환불 현재 범위
+
+- `GET /api/v1/seller/payments`로 로그인 사용자의 결제·환불 내역을 조회한다.
+- `POST /api/v1/seller/refunds`는 환불 요청을 `REQUESTED`로 등록한다.
+- PG 승인, 웹훅 검증, 실제 환불 실행, 멱등키 처리는 외부 PG 연동 작업으로 남아 있다.
 
 ## 10. 토큰 저장 및 보안
 
@@ -2120,8 +2262,57 @@ export const wholesaleStockReceiptApi = {
 
 ## 14. 셀러·도매 관리자 추가 메뉴
 
-레거시 `/api/v1/menus`는 개발 DB에 메뉴 마스터 테이블이 없어 사용하지 않는다. 프론트는 로그인
-응답의 `adminScopes`로 메뉴를 구성한다.
+### 14.0 서비스 관리자 전체 문의 API
+
+관리자 권한으로 전체 문의를 조회하고 답변·상태를 관리한다. 응답은 `content`, `page`, `size`,
+`totalElements`, `totalPages` 페이지 구조이며 `answer`, `answeredAt`은 미답변 시 `null`이다.
+
+```http
+GET /api/v1/admin/support/inquiries?page=0&size=20&keyword=&category=&status=&businessType=
+PUT /api/v1/admin/support/inquiries/{inquirySeq}/answer
+PATCH /api/v1/admin/support/inquiries/{inquirySeq}/status
+```
+
+답변 body는 `{ "content": "답변 내용" }`이며 공백만 입력할 수 없고 최대 4,000자다. 답변 등록 시
+상태는 `ANSWERED`로 변경된다. 상태 body는 `{ "status": "OPEN" | "ANSWERED" | "CLOSED" }`다.
+관리자 외 권한은 `403`, 없는 문의는 `404`를 반환한다.
+
+### 14.1 메뉴 조회 API (DB 기반 2뎁스)
+
+메뉴는 DB의 `menu`에서 관리하는 2뎁스 구조다. 로그인 후 다음 API로 역할별 메뉴를 조회한다.
+
+```http
+GET /api/v1/menus/navigation
+Authorization: Bearer {accessToken}
+```
+
+`scope`는 선택값(`WHOLESALE` 또는 `RETAIL`)이며 생략하면 토큰 권한 기준으로 도매 또는 셀러 메뉴를 반환한다.
+관리자 계정은 화면 전환에 필요한 scope를 명시할 수 있다.
+
+```ts
+export type MenuScope = 'WHOLESALE' | 'RETAIL';
+export interface MenuItem {
+  seq: number;
+  code: string;
+  name: string;
+  depth: 1 | 2;
+  routePath: string | null;
+  icon: string | null;
+  sortOrder: number;
+  children: MenuItem[];
+}
+
+export const menuApi = {
+  navigation: (scope?: MenuScope) =>
+    api.get<MenuItem[]>('/api/v1/menus/navigation', scope ? { params: { scope } } : undefined),
+};
+```
+
+현재 등록 메뉴는 도매(대시보드, 마스터 관리, 입출고 관리, 정산 관리, 기타)와 셀러(대시보드,
+마스터 관리, 주문 관리, 정산 관리, 기타)이며 각 그룹의 2뎁스 항목은 운영 메뉴 정의와 동일하다.
+도매 상품관리 메뉴의 프론트 라우트는 `/admin/supplier/products`를 사용한다. 메뉴 응답의
+`routePath`와 프론트 라우터 경로가 다르면 메뉴 클릭 후 화면이 열리지 않거나 빈 화면이 될 수 있다.
+기존 레거시 `/api/v1/menus` 및 `t_cm_menu_master` API는 호환을 위해 유지하지만 신규 프론트 메뉴 구성에는 사용하지 않는다.
 
 셀러 관리자 권장 순서: 대시보드, 상품 탐색, 장바구니, 주문 관리, 배송지 관리, 결제·환불,
 찜 상품, 문의, 알림, 사업자·매장 관리. 현재 상품·장바구니·주문·문의·알림 API가 구현되어 있고,
@@ -2199,6 +2390,7 @@ export interface SellerWishlist {
   wholesale_store_seq: number;
   wholesale_store_name: string;
   price: number | null; // ACTIVE SKU가 없으면 null
+  total_stock_quantity: number;
   product_status: string;
   created_at: string;
 }
@@ -2267,6 +2459,9 @@ export const sellerAdminApi = {
 `requested_claim_count`를 반환한다. 재고 부족 기준은 현재 `available_quantity <= 5`다.
 
 클레임 `claim_type`은 `CANCEL | RETURN`, 상태는 `REQUESTED | APPROVED | REJECTED | COMPLETED`다.
+클레임 목록의 `status`는 선택 query parameter다. 생략하면 로그인 사용자가 소유한 전체 클레임을 반환하고,
+`REQUESTED`, `APPROVED`, `REJECTED`, `COMPLETED` 중 하나를 전달하면 해당 상태만 반환한다.
+`status`를 생략한 요청도 정상적으로 처리되므로 프론트에서는 전체 목록 조회 시 query parameter를 보내지 않아도 된다.
 상태 변경 body는 `{ "status": "APPROVED" }` 형식이며 `REQUESTED → APPROVED → COMPLETED` 또는
 `REQUESTED → REJECTED`만 허용한다. 잘못된 상태 전이는 `409 O005`다.
 
@@ -2278,7 +2473,7 @@ export const sellerAdminApi = {
 ```ts
 export const wholesaleManagementApi = {
   dashboard: () => api.get('/api/v1/wholesale/management/dashboard'),
-  claims: (status?: string) => api.get('/api/v1/wholesale/management/claims', { params: { status } }),
+  claims: (status?: ClaimStatus) => api.get<WholesaleClaim[]>('/api/v1/wholesale/management/claims', status ? { params: { status } } : undefined),
   updateClaimStatus: (seq: number, status: string) => api.patch(`/api/v1/wholesale/management/claims/${seq}/status`, { status }),
   settlements: () => api.get('/api/v1/wholesale/management/settlements'),
   payoutAccounts: () => api.get('/api/v1/wholesale/management/payout-accounts'),
@@ -2362,14 +2557,20 @@ export const adminCommonApi = {
 12. 사업자 대표 사용자와 실제 주문 처리 사용자가 다를 때 주문자 확정 방식
 13. 사용자에게 소매 매장이 여러 개인 경우 주문 매장 선택 방식
 
-14. 서비스 관리자 API의 역할 기반 접근 제어 방식
-15. 배송비·할인 계산 정책과 `shippingAddressSeq` 소유권 검증 방식
+14. 배송비·할인 계산 정책과 `shippingAddressSeq` 소유권 검증 방식
+15. PG 승인·웹훅 서명 검증 및 멱등키 정책
 16. 주문 취소 상태 전이와 취소 시 예약 재고 복구 정책
+17. 정산 수수료율·환불 차감·지급 확정 정책
 
 ## 16. 변경 이력
 
 | 날짜 | 변경 내용 |
 |---|---|
+| 2026-09-07 | 주문 취소, 셀러 클레임 접수, 도매 정산 산출 생성 API 및 프론트 타입·상태 처리 계약 추가 |
+| 2026-09-08 | DB 기반 2뎁스 메뉴 테이블 `menu`와 `/api/v1/menus/navigation` API 계약 추가 |
+| 2026-09-07 | 역할별 접근 매트릭스 확정: 카테고리 쓰기는 관리자, 상품 쓰기는 도매·관리자, 장바구니·셀러 주문은 소매·관리자로 제한 |
+| 2026-09-07 | 상품 조회 로그 요청 body의 `userId`를 제거하고 토큰 사용자 `userSeq`를 서버에서 기록하도록 변경 |
+| 2026-09-07 | 프론트의 공통 `401` 재인증과 `403` 권한 부족 처리 기준 및 CORS allowlist 주의사항 추가 |
 | 2026-08-25 | 로그인 아이디 `userId`를 제외한 관계 참조를 `*Seq`로 통일하고 상품 API의 `wholesaleStoreId`를 `wholesaleStoreSeq`로 변경 |
 | 2026-08-25 | 도매 관리자 대시보드·반품/취소·정산·거래처·사업자/매장 API 및 전체 메뉴 매핑 추가 |
 | 2026-08-25 | 셀러 관리자 대시보드·배송지·결제/환불·찜·사업자/매장 API 및 전체 메뉴 매핑 추가 |

@@ -82,6 +82,30 @@ const router = createRouter({
           meta: { layout: 'admin', adminRole: 'supplier', adminTitle: '대시보드' },
         },
         {
+          path: 'supplier/settlements',
+          name: 'supplier-admin-settlements',
+          component: () => import('../views/WholesaleSettlementsView.vue'),
+          meta: { layout: 'admin', adminRole: 'supplier', adminTitle: '정산 관리' },
+        },
+        {
+          path: 'supplier/claims',
+          name: 'supplier-admin-claims',
+          component: () => import('../views/WholesaleClaimsView.vue'),
+          meta: { layout: 'admin', adminRole: 'supplier', adminTitle: '반품·취소' },
+        },
+        {
+          path: 'supplier/clients',
+          name: 'supplier-admin-clients',
+          component: () => import('../views/WholesaleClientsView.vue'),
+          meta: { layout: 'admin', adminRole: 'supplier', adminTitle: '거래처 관리' },
+        },
+        {
+          path: 'supplier/business',
+          name: 'supplier-admin-business',
+          component: () => import('../views/WholesaleBusinessView.vue'),
+          meta: { layout: 'admin', adminRole: 'supplier', adminTitle: '사업자·매장 관리' },
+        },
+        {
           path: 'supplier/inventory',
           name: 'supplier-admin-inventory',
           component: () => import('../views/AdminInventoryView.vue'),

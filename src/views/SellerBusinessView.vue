@@ -34,7 +34,8 @@ onMounted(() => store.fetchBusiness().catch(() => undefined))
           <li v-for="storeItem in profile.stores" :key="storeItem.seq">
             <strong>{{ storeItem.storeName }}</strong
             ><span
-              >{{ storeItem.salesChannel ?? '판매 채널 미등록' }} · {{ storeItem.status }}</span
+              >{{ storeItem.userName }} ({{ storeItem.userId }}) ·
+              {{ storeItem.salesChannel ?? '판매 채널 미등록' }} · {{ storeItem.status }}</span
             >
           </li>
         </ul>

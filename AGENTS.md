@@ -4,7 +4,7 @@
   - 도매가 등록한 상품을 셀러가 구매 할수 있어야 해
   - 도매는 상품을 동록하수 있어야 해
   - `MEMORY.md` 작업한 내용은에 기록해주고 항상 참조해
-  - API 적용 전 `docs/frontend-api-guide.md`를 항상 참고해
+  - 모든 작업 전 백엔드 원본 `/Users/yh.baek/work/workspace_BE/commerce/docs/frontend-api-guide.md`를 먼저 검토하고, API 적용 시 프론트의 `docs/frontend-api-guide.md`와 대조해
   - api 연도정보도 정리해서 기록해
   - 앞으로 docs/frontend-api-guide.md를 API 연동의 우선 참조로 삼도록 저장소 지침과 메모에 명시해
   - api 작업중 필요한 필드 또는 로직은 `docs/api-guide.md`에 기록해줘
