@@ -124,12 +124,12 @@ onMounted(load)
 
     <form class="admin-filter-panel admin-business-filters" @submit.prevent="load">
       <label v-if="resource !== 'business-profiles'"
-        ><span>사업자 프로필 ID</span
+        ><span>사업자 ID</span
         ><input v-model.number="businessProfileSeq" min="1" type="number" placeholder="전체"
       /></label>
       <label class="admin-search-field"
         ><span>현재 결과 내 검색</span
-        ><input v-model="keyword" placeholder="상호, 사업자번호, 매장명 검색"
+        ><input v-model="keyword" placeholder="사업자명, 사업자번호, 사업장명 검색"
       /></label>
       <button class="admin-reset-button" type="button" @click="resetFilters">↻ 초기화</button>
       <button class="admin-search-button" type="submit">조회</button>
@@ -153,7 +153,7 @@ onMounted(load)
               <th>사용자 ID</th>
               <th>사용자명</th>
               <th>사업자번호</th>
-              <th>상호</th>
+              <th>사업자명</th>
               <th>대표자</th>
               <th>승인 상태</th>
               <th>승인일</th>
@@ -161,10 +161,12 @@ onMounted(load)
             </tr>
             <tr v-else-if="resource === 'wholesale-stores'">
               <th>ID</th>
-              <th>프로필 ID</th>
-              <th>상호</th>
+              <th>사용자 ID</th>
+              <th>사용자명</th>
+              <th>사업자 ID</th>
+              <th>사업자명</th>
               <th>사업자번호</th>
-              <th>매장명</th>
+              <th>사업장명</th>
               <th>시장명</th>
               <th>층/호수</th>
               <th>상태</th>
@@ -172,10 +174,12 @@ onMounted(load)
             </tr>
             <tr v-else>
               <th>ID</th>
-              <th>프로필 ID</th>
-              <th>상호</th>
+              <th>사용자 ID</th>
+              <th>사용자명</th>
+              <th>사업자 ID</th>
+              <th>사업자명</th>
               <th>사업자번호</th>
-              <th>매장명</th>
+              <th>사업장명</th>
               <th>판매 채널</th>
               <th>상태</th>
               <th>관리</th>
@@ -183,7 +187,7 @@ onMounted(load)
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td :colspan="resource === 'retail-stores' ? 8 : 9" class="admin-empty">
+              <td :colspan="resource === 'retail-stores' ? 10 : 11" class="admin-empty">
                 목록을 불러오는 중입니다.
               </td>
             </tr>
@@ -207,6 +211,8 @@ onMounted(load)
               </tr>
               <tr v-else-if="isWholesale(item)">
                 <td>{{ item.seq }}</td>
+                <td>{{ item.userId ?? item.userSeq ?? '-' }}</td>
+                <td>{{ item.userName ?? '-' }}</td>
                 <td>{{ item.businessProfileSeq }}</td>
                 <td>{{ item.companyName }}</td>
                 <td>{{ item.businessNumber }}</td>
@@ -224,6 +230,8 @@ onMounted(load)
               </tr>
               <tr v-else-if="isRetail(item)">
                 <td>{{ item.seq }}</td>
+                <td>{{ item.userId ?? item.userSeq ?? '-' }}</td>
+                <td>{{ item.userName ?? '-' }}</td>
                 <td>{{ item.businessProfileSeq }}</td>
                 <td>{{ item.companyName }}</td>
                 <td>{{ item.businessNumber }}</td>
@@ -240,7 +248,7 @@ onMounted(load)
               </tr>
             </template>
             <tr v-if="!loading && filteredItems.length === 0">
-              <td :colspan="resource === 'retail-stores' ? 8 : 9" class="admin-empty">
+              <td :colspan="resource === 'retail-stores' ? 10 : 11" class="admin-empty">
                 조회된 정보가 없습니다.
               </td>
             </tr>

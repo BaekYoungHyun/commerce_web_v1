@@ -20,8 +20,10 @@ const {
   detailLoading: loading,
   detailError: error,
 } = storeToRefs(catalogStore)
+const { business: sellerBusiness } = storeToRefs(sellerAdminStore)
 const selectedImageSeq = ref<number | null>(null)
 const selectedVariantSeq = ref<number | null>(null)
+const selectedWishlistRetailStoreSeq = ref<number | null>(null)
 const variantQuantities = ref<Record<number, number>>({})
 const showToast = ref(false)
 const toastMessage = ref('')
@@ -29,8 +31,21 @@ const isSellerAdmin = computed(() => route.meta.sellerCatalog === true)
 const catalogPath = computed(() => (isSellerAdmin.value ? '/admin/seller/products' : '/'))
 
 const productSeq = computed(() => Number(route.params.id))
+const wishlistRetailStores = computed(() =>
+  (sellerBusiness.value?.businessProfiles ?? []).flatMap((profile) =>
+    profile.stores.map((store) => ({
+      ...store,
+      companyName: profile.companyName,
+    })),
+  ),
+)
 const currentWishlist = computed(
-  () => sellerAdminStore.wishlists.find((item) => item.product_seq === productSeq.value) ?? null,
+  () =>
+    sellerAdminStore.wishlists.find(
+      (item) =>
+        item.product_seq === productSeq.value &&
+        item.retail_store_seq === selectedWishlistRetailStoreSeq.value,
+    ) ?? null,
 )
 const canUseWishlist = computed(() => authStore.isRetail)
 const sortedImages = computed(() =>
@@ -83,8 +98,13 @@ async function loadProduct() {
     await Promise.all([
       catalogStore.fetchProduct(productSeq.value),
       categoriesStore.fetchCategories(),
-      authStore.isRetail ? sellerAdminStore.fetchWishlists() : Promise.resolve(),
+      authStore.isRetail
+        ? Promise.all([sellerAdminStore.fetchWishlists(), sellerAdminStore.fetchBusiness()])
+        : Promise.resolve(),
     ])
+    const activeStore = wishlistRetailStores.value.find((store) => store.status === 'ACTIVE')
+    selectedWishlistRetailStoreSeq.value =
+      activeStore?.seq ?? wishlistRetailStores.value[0]?.seq ?? null
     selectedImageSeq.value = sortedImages.value[0]?.seq ?? null
     selectedVariantSeq.value = null
     variantQuantities.value = {}
@@ -96,6 +116,8 @@ async function loadProduct() {
 watch(productSeq, loadProduct, { immediate: true })
 
 function selectVariant(variantSeq: number) {
+  const variant = product.value?.variants.find((item) => item.seq === variantSeq)
+  if (!variant || variant.availableQuantity <= (variantQuantities.value[variantSeq] ?? 0)) return
   selectedVariantSeq.value = variantSeq
   variantQuantities.value = {
     ...variantQuantities.value,
@@ -104,7 +126,12 @@ function selectVariant(variantSeq: number) {
 }
 
 function changeVariantQuantity(variantSeq: number, amount: number) {
-  const nextQuantity = Math.max(0, (variantQuantities.value[variantSeq] ?? 0) + amount)
+  const availableQuantity =
+    product.value?.variants.find((item) => item.seq === variantSeq)?.availableQuantity ?? 0
+  const nextQuantity = Math.min(
+    availableQuantity,
+    Math.max(0, (variantQuantities.value[variantSeq] ?? 0) + amount),
+  )
   const nextQuantities = { ...variantQuantities.value }
   if (nextQuantity === 0) {
     delete nextQuantities[variantSeq]
@@ -146,9 +173,8 @@ async function addToWishlist() {
       window.setTimeout(() => (showToast.value = false), 2200)
       return
     }
-    await cartStore.loadCart()
-    const retailStoreSeq = cartStore.cart?.buyer.retailStoreSeq
-    if (retailStoreSeq == null) throw new Error('연결된 소매 매장이 필요합니다.')
+    const retailStoreSeq = selectedWishlistRetailStoreSeq.value
+    if (retailStoreSeq == null) throw new Error('찜을 저장할 소매 매장을 먼저 등록해 주세요.')
     await sellerAdminStore.addWishlist({ retailStoreSeq, productSeq: product.value.seq })
     toastMessage.value = '찜 상품에 추가했습니다.'
   } catch (cause) {
@@ -267,6 +293,10 @@ async function addToWishlist() {
             <dd>{{ productStatusLabel(product.status) }}</dd>
           </div>
           <div>
+            <dt>총 가용 재고</dt>
+            <dd>{{ product.totalStockQuantity.toLocaleString() }}개</dd>
+          </div>
+          <div>
             <dt>조회수</dt>
             <dd>{{ product.viewCount.toLocaleString() }}회</dd>
           </div>
@@ -289,11 +319,12 @@ async function addToWishlist() {
               :key="variant.seq"
               type="button"
               :class="{ active: (variantQuantities[variant.seq] ?? 0) > 0 }"
-              :disabled="variant.status !== 'ACTIVE'"
+              :disabled="variant.status !== 'ACTIVE' || variant.availableQuantity <= 0"
               :aria-label="`${variantName(variant)} 1개 추가`"
               @click="selectVariant(variant.seq)"
             >
               {{ variantName(variant) }} · {{ formatPrice(variant.supplyPrice) }}원
+              <small>가용 {{ variant.availableQuantity.toLocaleString() }}개</small>
               <b v-if="variantQuantities[variant.seq]">×{{ variantQuantities[variant.seq] }}</b>
               <small v-if="variant.status !== 'ACTIVE'">{{
                 productStatusLabel(variant.status)
@@ -320,6 +351,7 @@ async function addToWishlist() {
               <strong>{{ item.quantity }}</strong>
               <button
                 type="button"
+                :disabled="item.quantity >= item.variant.availableQuantity"
                 :aria-label="`${variantName(item.variant)} 수량 늘리기`"
                 @click="changeVariantQuantity(item.variant.seq, 1)"
               >
@@ -341,6 +373,18 @@ async function addToWishlist() {
         </div>
 
         <div class="detail-actions">
+          <label v-if="canUseWishlist && wishlistRetailStores.length" class="wishlist-store-select">
+            <span>찜 저장 매장</span>
+            <select v-model="selectedWishlistRetailStoreSeq">
+              <option v-for="store in wishlistRetailStores" :key="store.seq" :value="store.seq">
+                {{ store.companyName }} · {{ store.storeName }}
+              </option>
+            </select>
+          </label>
+          <p v-else-if="canUseWishlist" class="wishlist-store-empty">
+            찜을 사용하려면 <RouterLink to="/admin/seller/business">소매 매장 연결</RouterLink>이
+            필요합니다.
+          </p>
           <button
             class="wish-button"
             type="button"

@@ -19,6 +19,7 @@ const product: AdminProduct = {
   images: [],
   options: [],
   variants: [],
+  totalStockQuantity: 0,
   viewCount: 0,
 }
 
@@ -40,7 +41,9 @@ describe('adminProducts store', () => {
 
   it('상품 등록과 수정 요청을 API에 전달한다', async () => {
     const create = vi.spyOn(productApi, 'create').mockResolvedValue(product)
-    const update = vi.spyOn(productApi, 'update').mockResolvedValue({ ...product, name: '수정 셔츠' })
+    const update = vi
+      .spyOn(productApi, 'update')
+      .mockResolvedValue({ ...product, name: '수정 셔츠' })
     const store = useAdminProductsStore()
     const payload = {
       wholesaleStoreSeq: 10,

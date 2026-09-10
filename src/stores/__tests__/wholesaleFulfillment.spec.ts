@@ -14,7 +14,16 @@ describe('wholesaleFulfillment store', () => {
 
   it('소유 매장에 포함되지 않은 주문 품목을 화면 상태에서 제외한다', async () => {
     vi.spyOn(wholesaleFulfillmentApi, 'stores').mockResolvedValue([
-      { seq: 2, storeName: 'YH 도매', status: 'ACTIVE' },
+      {
+        seq: 2,
+        businessProfileSeq: 1,
+        businessProfileName: 'YH 사업자',
+        userSeq: 3,
+        userId: 'supplier1',
+        userName: '도매 사용자',
+        storeName: 'YH 도매',
+        status: 'ACTIVE',
+      },
     ])
     vi.spyOn(wholesaleFulfillmentApi, 'orders').mockResolvedValue({
       content: [
@@ -122,7 +131,18 @@ describe('wholesaleFulfillment store', () => {
 
   it('주문 품목 상태 변경 응답의 전체 주문으로 기존 주문을 교체한다', async () => {
     const store = useWholesaleFulfillmentStore()
-    store.stores = [{ seq: 2, storeName: 'YH 도매', status: 'ACTIVE' }]
+    store.stores = [
+      {
+        seq: 2,
+        businessProfileSeq: 1,
+        businessProfileName: 'YH 사업자',
+        userSeq: 3,
+        userId: 'supplier1',
+        userName: '도매 사용자',
+        storeName: 'YH 도매',
+        status: 'ACTIVE',
+      },
+    ]
     store.orders = [
       {
         orderSeq: 1,

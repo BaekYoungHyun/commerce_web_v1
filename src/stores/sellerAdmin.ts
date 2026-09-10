@@ -13,6 +13,7 @@ import type {
   SellerWishlist,
   WishlistRequest,
 } from '../types/sellerAdmin'
+import type { ClaimCreateRequest } from '../types/order'
 
 export const useSellerAdminStore = defineStore('sellerAdmin', () => {
   const auth = useAuthStore()
@@ -113,6 +114,18 @@ export const useSellerAdminStore = defineStore('sellerAdmin', () => {
       saving.value = false
     }
   }
+  async function createClaim(body: ClaimCreateRequest) {
+    saving.value = true
+    error.value = ''
+    try {
+      return await authorized((token) => sellerAdminApi.createClaim(token, body))
+    } catch (cause) {
+      error.value = cause instanceof Error ? cause.message : '클레임을 접수하지 못했습니다.'
+      throw cause
+    } finally {
+      saving.value = false
+    }
+  }
   return {
     dashboard,
     addresses,
@@ -132,5 +145,6 @@ export const useSellerAdminStore = defineStore('sellerAdmin', () => {
     saveAddress,
     removeAddress,
     requestRefund,
+    createClaim,
   }
 })

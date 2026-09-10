@@ -140,6 +140,10 @@ onMounted(load)
               <dd>{{ product.minOrderQuantity.toLocaleString() }}개</dd>
             </div>
             <div>
+              <dt>총 가용 재고</dt>
+              <dd>{{ product.totalStockQuantity.toLocaleString() }}개</dd>
+            </div>
+            <div>
               <dt>조회수</dt>
               <dd>{{ product.viewCount.toLocaleString() }}회</dd>
             </div>
@@ -203,6 +207,8 @@ onMounted(load)
                 <th>공급가</th>
                 <th>판매가</th>
                 <th>예상 마진</th>
+                <th>가용 재고</th>
+                <th>예약 재고</th>
                 <th>상태</th>
               </tr>
             </thead>
@@ -217,12 +223,14 @@ onMounted(load)
                 <td>{{ variant.supplyPrice.toLocaleString() }}원</td>
                 <td>{{ variant.salePrice.toLocaleString() }}원</td>
                 <td>{{ (variant.salePrice - variant.supplyPrice).toLocaleString() }}원</td>
+                <td>{{ variant.availableQuantity.toLocaleString() }}개</td>
+                <td>{{ variant.reservedQuantity.toLocaleString() }}개</td>
                 <td>
                   <i class="admin-status">{{ productStatusLabel(variant.status) }}</i>
                 </td>
               </tr>
               <tr v-if="!product.variants.length">
-                <td colspan="8">등록된 SKU가 없습니다.</td>
+                <td colspan="10">등록된 SKU가 없습니다.</td>
               </tr>
             </tbody>
           </table>

@@ -103,7 +103,9 @@ onMounted(async () => {
         ><select v-model="wholesaleStoreSeq">
           <option :value="null">내 전체 매장</option>
           <option v-for="ownedStore in stores" :key="ownedStore.seq" :value="ownedStore.seq">
-            {{ ownedStore.storeName }} (#{{ ownedStore.seq }})
+            {{ ownedStore.businessProfileName ?? '사업자명 없음' }} · {{ ownedStore.storeName }} ({{
+              ownedStore.userId ?? '사용자 미연결'
+            }})
           </option>
         </select></label
       ><label

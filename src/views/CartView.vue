@@ -102,8 +102,34 @@ onMounted(() => {
 </script>
 
 <template>
-  <main :class="isSellerAdmin ? 'admin-content seller-admin-cart' : 'cart-page'">
-    <header class="cart-heading">
+  <main :class="isSellerAdmin ? 'admin-content admin-list-content seller-admin-cart' : 'cart-page'">
+    <div v-if="isSellerAdmin" class="admin-page-heading">
+      <div>
+        <p>SELLER CART</p>
+        <h1>장바구니</h1>
+        <span>도매처별 상품과 주문 조건을 확인하고 선택 상품을 주문합니다.</span>
+      </div>
+      <RouterLink class="admin-primary-button" :to="productListPath">+ 상품 탐색</RouterLink>
+    </div>
+    <section v-if="isSellerAdmin && cart" class="admin-summary" aria-label="장바구니 요약">
+      <div>
+        <span>전체 품목</span><strong>{{ items.length }}</strong
+        ><small>종</small>
+      </div>
+      <div>
+        <span>선택 수량</span><strong>{{ checkedCount }}</strong
+        ><small>개</small>
+      </div>
+      <div>
+        <span>도매처</span><strong>{{ wholesaleGroups.length }}</strong
+        ><small>곳</small>
+      </div>
+      <div>
+        <span>선택 금액</span><strong>{{ formatPrice(productAmount) }}</strong
+        ><small>원</small>
+      </div>
+    </section>
+    <header v-if="!isSellerAdmin" class="cart-heading">
       <div>
         <p class="eyebrow coral">SHOPPING CART</p>
         <h1>장바구니</h1>
@@ -132,7 +158,7 @@ onMounted(() => {
     </div>
 
     <template v-else-if="cart">
-      <section class="cart-buyer-card">
+      <section :class="['cart-buyer-card', { 'admin-table-panel': isSellerAdmin }]">
         <div>
           <p>주문 소매 매장</p>
           <strong>{{ cart.buyer.retailStoreName ?? '등록된 소매 매장 없음' }}</strong>
@@ -165,7 +191,7 @@ onMounted(() => {
       </div>
 
       <div v-else class="cart-layout">
-        <section class="cart-list">
+        <section :class="['cart-list', { 'admin-table-panel': isSellerAdmin }]">
           <div class="cart-toolbar">
             <label
               ><input type="checkbox" :checked="allChecked" @change="cartStore.toggleAll" /> 전체
@@ -252,63 +278,71 @@ onMounted(() => {
 
         <aside class="cart-summary-panel">
           <h2>선택 상품 금액</h2>
-          <dl>
-            <div>
-              <dt>선택 수량</dt>
-              <dd>{{ checkedCount }}개</dd>
+          <div class="cart-order-main">
+            <div class="cart-order-amounts">
+              <dl>
+                <div>
+                  <dt>선택 수량</dt>
+                  <dd>{{ checkedCount }}개</dd>
+                </div>
+                <div>
+                  <dt>상품 금액</dt>
+                  <dd>{{ formatPrice(productAmount) }}원</dd>
+                </div>
+                <div>
+                  <dt>전체 장바구니</dt>
+                  <dd>{{ formatPrice(cart.totalAmount) }}원</dd>
+                </div>
+              </dl>
+              <div class="cart-total">
+                <span>선택 상품 합계</span><strong>{{ formatPrice(productAmount) }}원</strong>
+                <small>서버가 확정한 품목별 금액 기준</small>
+              </div>
             </div>
-            <div>
-              <dt>상품 금액</dt>
-              <dd>{{ formatPrice(productAmount) }}원</dd>
+            <div class="cart-order-fields">
+              <label
+                ><span>수령인</span><input v-model="recipientName" maxlength="100" required
+              /></label>
+              <label
+                ><span>연락처</span><input v-model="recipientPhone" maxlength="30" required
+              /></label>
+              <label
+                ><span>배송지 SEQ <small>(선택)</small></span
+                ><input
+                  v-model.number="shippingAddressSeq"
+                  min="1"
+                  type="number"
+                  placeholder="등록된 배송지 SEQ"
+              /></label>
             </div>
-            <div>
-              <dt>전체 장바구니</dt>
-              <dd>{{ formatPrice(cart.totalAmount) }}원</dd>
+            <div v-if="!hasRetailStore" class="cart-order-error" role="alert">
+              <strong>소매 매장 등록이 필요합니다.</strong>
+              <p>주문하려면 로그인 사용자에게 연결된 소매 사업자와 매장 정보가 있어야 합니다.</p>
             </div>
-          </dl>
-          <div class="cart-total">
-            <span>선택 상품 합계</span><strong>{{ formatPrice(productAmount) }}원</strong>
-            <small>서버가 확정한 품목별 금액 기준</small>
+            <div v-if="ordersStore.error" class="cart-order-error" role="alert">
+              <span>{{ ordersStore.errorCode ?? 'ORDER_ERROR' }}</span>
+              <strong>{{ orderErrorTitle }}</strong>
+              <p>{{ ordersStore.error }}</p>
+              <small>선택 상품과 수량을 확인한 후 다시 시도해 주세요.</small>
+            </div>
+            <div class="cart-order-submit">
+              <button
+                class="checkout-button"
+                type="button"
+                :disabled="
+                  ordersStore.creating ||
+                  !hasRetailStore ||
+                  !cartStore.checkedItems.length ||
+                  !recipientName.trim() ||
+                  !recipientPhone.trim()
+                "
+                @click="createOrder"
+              >
+                {{ ordersStore.creating ? '주문 처리 중...' : `${checkedCount}개 상품 주문하기` }}
+              </button>
+              <p>배송비와 최종 주문 금액은 서버가 확정합니다.</p>
+            </div>
           </div>
-          <div class="cart-order-fields">
-            <label
-              ><span>수령인</span><input v-model="recipientName" maxlength="100" required /></label
-            ><label
-              ><span>연락처</span><input v-model="recipientPhone" maxlength="30" required /></label
-            ><label
-              ><span>배송지 SEQ <small>(선택)</small></span
-              ><input
-                v-model.number="shippingAddressSeq"
-                min="1"
-                type="number"
-                placeholder="등록된 배송지 SEQ"
-            /></label>
-          </div>
-          <div v-if="!hasRetailStore" class="cart-order-error" role="alert">
-            <strong>소매 매장 등록이 필요합니다.</strong>
-            <p>주문하려면 로그인 사용자에게 연결된 소매 사업자와 매장 정보가 있어야 합니다.</p>
-          </div>
-          <div v-if="ordersStore.error" class="cart-order-error" role="alert">
-            <span>{{ ordersStore.errorCode ?? 'ORDER_ERROR' }}</span>
-            <strong>{{ orderErrorTitle }}</strong>
-            <p>{{ ordersStore.error }}</p>
-            <small>선택 상품과 수량을 확인한 후 다시 시도해 주세요.</small>
-          </div>
-          <button
-            class="checkout-button"
-            type="button"
-            :disabled="
-              ordersStore.creating ||
-              !hasRetailStore ||
-              !cartStore.checkedItems.length ||
-              !recipientName.trim() ||
-              !recipientPhone.trim()
-            "
-            @click="createOrder"
-          >
-            {{ ordersStore.creating ? '주문 처리 중...' : `${checkedCount}개 상품 주문하기` }}
-          </button>
-          <p>배송비와 최종 주문 금액은 서버가 확정합니다.</p>
         </aside>
       </div>
     </template>

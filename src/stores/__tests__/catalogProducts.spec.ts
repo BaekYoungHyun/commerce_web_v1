@@ -17,8 +17,15 @@ describe('catalogProducts store', () => {
     const list = vi.spyOn(productApi, 'list').mockResolvedValue(page)
     const store = useCatalogProductsStore()
 
-    await expect(store.fetchProducts({ page: 0, size: 20, categorySeq: 8, name: '셔츠' })).resolves.toEqual(page)
-    expect(list).toHaveBeenCalledWith('access-token', { page: 0, size: 20, categorySeq: 8, name: '셔츠' })
+    await expect(
+      store.fetchProducts({ page: 0, size: 20, categorySeq: 8, name: '셔츠' }),
+    ).resolves.toEqual(page)
+    expect(list).toHaveBeenCalledWith('access-token', {
+      page: 0,
+      size: 20,
+      categorySeq: 8,
+      name: '셔츠',
+    })
   })
 
   it('상품 상세를 서버에서 조회해 현재 상품에 저장한다', async () => {
@@ -36,6 +43,7 @@ describe('catalogProducts store', () => {
       images: [],
       options: [],
       variants: [],
+      totalStockQuantity: 0,
       viewCount: 12,
     }
     const detail = vi
@@ -44,7 +52,7 @@ describe('catalogProducts store', () => {
       .mockResolvedValueOnce({ ...product, viewCount: 13 })
     const createView = vi.spyOn(productApi, 'createView').mockResolvedValue({
       seq: 1,
-      userId: null,
+      userSeq: 7,
       productSeq: 31,
       viewedAt: '2026-07-31T10:01:00+09:00',
     })
@@ -53,7 +61,7 @@ describe('catalogProducts store', () => {
     await expect(store.fetchProduct(31)).resolves.toEqual({ ...product, viewCount: 13 })
     expect(detail).toHaveBeenCalledTimes(2)
     expect(detail).toHaveBeenNthCalledWith(1, 'access-token', 31)
-    expect(createView).toHaveBeenCalledWith('access-token', 31, { userId: null })
+    expect(createView).toHaveBeenCalledWith('access-token', 31)
     expect(store.currentProduct?.viewCount).toBe(13)
   })
 })

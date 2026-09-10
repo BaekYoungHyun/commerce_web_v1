@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { ApiError } from '../services/httpClient'
+import { menuApi } from '../services/menuApi'
+import type { MenuItem, MenuScope } from '../types/menu'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const mobileMenuOpen = ref(false)
 const loggingOut = ref(false)
+const databaseMenus = ref<MenuItem[] | null>(null)
+const menuLoading = ref(false)
 const adminRole = computed(() =>
   route.meta.adminRole === 'system'
     ? 'system'
@@ -39,6 +44,7 @@ type AdminMenu = {
   to?: string
   badge?: string
   disabled?: boolean
+  group?: boolean
 }
 
 const supplierMenus: AdminMenu[] = [
@@ -49,12 +55,12 @@ const supplierMenus: AdminMenu[] = [
   { label: '출고 관리', icon: '⇄', to: '/admin/supplier/shipments' },
   { label: '재고 관리', icon: '▥', to: '/admin/supplier/inventory' },
   { label: '재고 일괄 관리', icon: '≡', to: '/admin/supplier/inventory/bulk' },
-  { label: '반품·취소', icon: '↩', disabled: true },
-  { label: '정산 관리', icon: '₩', disabled: true },
-  { label: '거래처 관리', icon: '♙', disabled: true },
+  { label: '반품·취소', icon: '↩', to: '/admin/supplier/claims' },
+  { label: '정산 관리', icon: '₩', to: '/admin/supplier/settlements' },
+  { label: '거래처 관리', icon: '♙', to: '/admin/supplier/clients' },
   { label: '문의', icon: '?', to: '/admin/supplier/inquiries' },
   { label: '알림', icon: '!', to: '/admin/supplier/notifications' },
-  { label: '사업자·매장 관리', icon: '⌂', disabled: true },
+  { label: '사업자·매장 관리', icon: '⌂', to: '/admin/supplier/business' },
 ]
 
 const sellerMenus: AdminMenu[] = [
@@ -80,13 +86,50 @@ const systemMenus: AdminMenu[] = [
   { label: '택배사 관리', icon: '⇄', to: '/admin/delivery-companies' },
 ]
 
-const menus = computed(() =>
+const fallbackMenus = computed(() =>
   adminRole.value === 'system'
     ? systemMenus
     : adminRole.value === 'supplier'
       ? supplierMenus
       : sellerMenus,
 )
+const menus = computed<AdminMenu[]>(() => {
+  if (!databaseMenus.value) return fallbackMenus.value
+  return databaseMenus.value.flatMap((parent) => {
+    const group: AdminMenu[] = [{ label: parent.name, icon: '', group: true }]
+    const items = parent.children.length ? parent.children : parent.routePath ? [parent] : []
+    return group.concat(
+      items.map((item) => ({
+        label: item.name,
+        icon: item.icon ?? '·',
+        to: item.routePath ?? undefined,
+        disabled: !item.routePath,
+      })),
+    )
+  })
+})
+
+async function loadMenus(role: typeof adminRole.value) {
+  databaseMenus.value = null
+  if (role === 'system') return
+  menuLoading.value = true
+  const scope: MenuScope = role === 'supplier' ? 'WHOLESALE' : 'RETAIL'
+  try {
+    const request = (token: string) => menuApi.navigation(token, scope)
+    try {
+      databaseMenus.value = await request(await authStore.getValidAccessToken())
+    } catch (cause) {
+      if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
+      databaseMenus.value = await request(await authStore.refreshAccessToken())
+    }
+  } catch {
+    databaseMenus.value = null
+  } finally {
+    menuLoading.value = false
+  }
+}
+
+watch(adminRole, loadMenus, { immediate: true })
 </script>
 
 <template>
@@ -124,7 +167,8 @@ const menus = computed(() =>
       <p class="admin-menu-label">{{ roleLabel }}</p>
       <nav class="admin-side-nav" aria-label="관리자 메뉴">
         <template v-for="menu in menus" :key="menu.label">
-          <RouterLink v-if="menu.to" :to="menu.to" @click="mobileMenuOpen = false">
+          <span v-if="menu.group" class="admin-menu-group">{{ menu.label }}</span>
+          <RouterLink v-else-if="menu.to" :to="menu.to" @click="mobileMenuOpen = false">
             <span class="admin-menu-icon">{{ menu.icon }}</span
             >{{ menu.label }}
             <small v-if="menu.badge">{{ menu.badge }}</small>
@@ -135,6 +179,7 @@ const menus = computed(() =>
             <small v-if="menu.badge">{{ menu.badge }}</small>
           </span>
         </template>
+        <span v-if="menuLoading" class="admin-menu-loading">메뉴 불러오는 중</span>
       </nav>
       <div class="admin-sidebar-bottom">
         <RouterLink to="/">← 서비스 화면</RouterLink>

@@ -12,6 +12,7 @@ export interface AdminProduct {
   images: AdminProductImage[]
   options: AdminProductOption[]
   variants: AdminProductVariant[]
+  totalStockQuantity: number
   viewCount: number
 }
 
@@ -37,15 +38,13 @@ export interface AdminProductVariant {
   supplyPrice: number
   salePrice: number
   status: string
-}
-
-export interface ProductViewCreateRequest {
-  userId?: number | null
+  availableQuantity: number
+  reservedQuantity: number
 }
 
 export interface ProductView {
   seq: number
-  userId: number | null
+  userSeq: number
   productSeq: number
   viewedAt: string
 }

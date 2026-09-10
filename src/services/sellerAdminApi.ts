@@ -9,6 +9,7 @@ import type {
   SellerWishlist,
   WishlistRequest,
 } from '../types/sellerAdmin'
+import type { Claim, ClaimCreateRequest } from '../types/order'
 
 const headers = (token: string) => ({ Authorization: `Bearer ${token}` })
 export const sellerAdminApi = {
@@ -50,4 +51,10 @@ export const sellerAdminApi = {
     apiRequest<void>(`/seller/wishlists/${seq}`, { method: 'DELETE', headers: headers(token) }),
   business: (token: string) =>
     apiRequest<SellerBusinessResponse>('/seller/business', { headers: headers(token) }),
+  createClaim: (token: string, body: ClaimCreateRequest) =>
+    apiRequest<Claim>('/seller/claims', {
+      method: 'POST',
+      headers: headers(token),
+      body: JSON.stringify(body),
+    }),
 }

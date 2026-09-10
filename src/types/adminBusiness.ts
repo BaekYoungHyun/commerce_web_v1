@@ -24,6 +24,9 @@ export interface WholesaleStore {
   businessProfileSeq: number
   companyName: string
   businessNumber: string
+  userSeq?: number | null
+  userId?: string | null
+  userName?: string | null
   storeName: string
   marketName: string | null
   floorRoom: string | null
@@ -43,6 +46,9 @@ export interface RetailStore {
   businessProfileSeq: number
   companyName: string
   businessNumber: string
+  userSeq?: number | null
+  userId?: string | null
+  userName?: string | null
   storeName: string
   salesChannel: string | null
   status: string
@@ -57,4 +63,7 @@ export interface RetailStoreRequest {
 
 export type AdminBusinessResource = 'business-profiles' | 'wholesale-stores' | 'retail-stores'
 export type AdminBusinessItem = BusinessProfile | WholesaleStore | RetailStore
-export type AdminBusinessRequest = BusinessProfileRequest | WholesaleStoreRequest | RetailStoreRequest
+export type AdminBusinessRequest =
+  | BusinessProfileRequest
+  | WholesaleStoreRequest
+  | RetailStoreRequest

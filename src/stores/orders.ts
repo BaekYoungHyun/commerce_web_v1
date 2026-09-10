@@ -14,6 +14,7 @@ export const useOrdersStore = defineStore('orders', () => {
   const currentOrder = ref<Order | null>(null)
   const loading = ref(false)
   const creating = ref(false)
+  const mutating = ref(false)
   const error = ref('')
   const errorCode = ref<string | number | null>(null)
 
@@ -77,16 +78,33 @@ export const useOrdersStore = defineStore('orders', () => {
       loading.value = false
     }
   }
+  async function cancelOrder(seq: number) {
+    mutating.value = true
+    error.value = ''
+    errorCode.value = null
+    try {
+      const canceled = await authorized((token) => orderApi.cancel(token, seq))
+      if (currentOrder.value?.seq === seq) currentOrder.value.status = canceled.status
+      return canceled
+    } catch (cause) {
+      fail(cause, '주문을 취소하지 못했습니다.')
+      throw cause
+    } finally {
+      mutating.value = false
+    }
+  }
   return {
     orders,
     pagination,
     currentOrder,
     loading,
     creating,
+    mutating,
     error,
     errorCode,
     createFromCart,
     fetchOrders,
     fetchOrder,
+    cancelOrder,
   }
 })

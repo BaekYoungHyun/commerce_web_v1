@@ -59,3 +59,31 @@ export interface Order {
   items: OrderItem[]
   shipments: SellerOrderShipment[]
 }
+
+export interface OrderCancelResponse {
+  seq: number
+  orderNo: string
+  status: 'CANCELED'
+  totalAmount: number
+  restoredQuantity: number
+}
+
+export type ClaimType = 'CANCEL' | 'RETURN'
+
+export interface ClaimCreateRequest {
+  orderItemSeq: number
+  claimType: ClaimType
+  quantity: number
+  reason?: string | null
+}
+
+export interface Claim {
+  seq: number
+  orderItemSeq: number
+  claimType: ClaimType
+  quantity: number
+  reason: string | null
+  status: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'COMPLETED'
+  requestedBy: number
+  createdAt: string
+}

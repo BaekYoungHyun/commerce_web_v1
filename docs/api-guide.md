@@ -114,6 +114,7 @@
 - 2026-08-24 재현: YH 도매에 연결된 로그인 계정의 도매 주문 화면에 `도매 매장 1-2`와 `YH 도매` 품목이 함께 노출됐다. 프론트는 관리자 전체 매장 API를 호출하거나 매장 목록을 합치지 않으므로 `/wholesale/orders` 또는 `/wholesale/stores`의 소유권 조회 결과를 확인해야 한다.
 - 프론트 방어 처리: `/wholesale/stores`를 먼저 조회하고, 이 응답의 `seq`에 포함되지 않은 주문 품목과 출고는 화면 상태에서 제거한다. 소유 매장 목록 조회에 실패하면 주문·출고를 조회하거나 표시하지 않는다.
 - 백엔드 확인 요청: 해당 계정으로 `GET /api/v1/wholesale/stores`가 YH 도매 한 건만 반환하는지 확인한다. 두 건을 반환한다면 사용자 PK → 사업자 프로필 → 도매 매장 연결 query를 수정해야 한다. 한 건만 반환한다면 `/wholesale/orders`가 반환한 `도매 매장 1-2` 품목은 계약 위반이므로 주문 query의 동일한 소유권 조건을 수정해야 한다.
+
 ## API-009 셀러 찜·사업자 화면 응답 DTO
 
 - 상태: 해결 (2026-08-25)
@@ -128,15 +129,119 @@
 - `/api/v1/wholesale/management/dashboard`, `claims`, `settlements`, `payout-accounts`, `clients`, `business`의 엔드포인트와 설명은 있으나 정확한 응답 DTO 필드명과 nullable 기준이 문서에 없다.
 - 각 목록, 사업자·매장, 정산계좌 조회 응답 타입을 `docs/frontend-api-guide.md`에 추가해야 프론트가 필드를 추측하지 않고 구현할 수 있다.
 - 부분 반영: 도매 대시보드는 문서에 확정된 `store_count`, `product_count`, `order_item_count`, `low_stock_count`, `requested_claim_count`를 사용해 구현했다. 나머지 관리 목록 DTO는 계속 확인이 필요하다.
+- 2026-09-07 부분 해결: 백엔드 구현을 대조해 클레임 목록·상태 변경 `WholesaleClaim`과 정산 목록 `WholesaleSettlement` 응답을 확정하고 프론트 화면에 반영했다. `payout-accounts`, `clients`, `business` 응답 DTO는 계속 확인이 필요하다.
+- 2026-09-08 프론트 반영: 백엔드 구현 필드와 가이드 설명을 대조해 `payout-accounts`, `clients`, `business` 화면을 구현했다. 정확한 응답 DTO의 가이드 명시는 여전히 필요하다.
 
 ## API-011 식별자 필드 `Seq` 명명 통일
 
 - 상태: 프론트 반영 완료, 백엔드 응답 확인 필요 (2026-08-25)
-- 예외: 로그인 아이디 문자열인 `userId`와 이를 포함한 `buyerUserId`는 유지한다. 상품 조회 로그의 명시적 `userId`도 현재 계약 예외로 유지한다.
+- 예외: 로그인 아이디 문자열인 `userId`와 이를 포함한 `buyerUserId`는 유지한다.
 - 변경: `wholesaleStoreId` → `wholesaleStoreSeq`, 상품 API 경로 변수 `productId` → `productSeq`.
 - 유지: `categorySeq`, `productSeq`, `variantSeq`, `retailStoreSeq`, `wholesaleStoreSeq`, `businessProfileSeq`, `orderSeq`, `shipmentSeq`, `shippingAddressSeq` 등 기존 `Seq` 필드.
 - JSON snake_case DTO는 동일한 원칙으로 `*_seq`를 사용한다. `user_id`만 예외다.
 - 백엔드는 상품 목록·상세·등록·수정 request/response 및 검색 query에서 `wholesaleStoreSeq`를 반환·수신해야 한다.
+- 2026-09-07 확정: 상품 조회 로그는 요청 body 없이 토큰 사용자를 `userSeq`로 기록하도록 프론트에 반영했다.
+
+## API-013 도매 정산 산출 성공 응답 DTO
+
+- 상태: 해결 (2026-09-07)
+- 대상: `POST /api/v1/wholesale/management/settlements/generate`
+- 확정 계약: 백엔드 Controller·Service 구현 기준 성공 HTTP Status는 `201 Created`이며, 응답은 산출 후 소유 매장의 전체 정산 목록 `WholesaleSettlement[]`다.
+- 응답 필드: `seq`, `wholesale_store_seq`, `store_name`, `period_start`, `period_end`, `gross_amount`, `commission_amount`, `payout_amount`, `status`.
+- 프론트 반영: 정산 목록 조회·산출 API, 기간·소유 매장 선택 폼, 산출 직후 반환 목록 갱신, 금액·상태 표시 화면을 구현했다.
+
+## API-014 DB 기반 관리자 내비게이션
+
+- 상태: 백엔드 `menu.route_path` 수정 요청 (2026-09-08)
+- 대상 API: `GET /api/v1/menus/navigation?scope=WHOLESALE|RETAIL`
+- 문제: API가 반환하는 일부 `routePath`가 실제 Vue Router 경로와 달라 클릭 시 잘못된 화면 또는 Not Found로 이동한다.
+- 기준 소스: 프론트 라우터 [src/router/index.ts](../src/router/index.ts). 아래 경로를 DB `menu.route_path`의 확정값으로 사용한다.
+- 응답: `MenuItem[]` 2뎁스 트리다. 이동 대상이 없는 1뎁스 그룹은 `routePath: null`, 실제 메뉴인 2뎁스는 `/`로 시작하는 절대 프론트 경로를 반환한다.
+- 주의: `routePath`는 백엔드 API 경로가 아니다. `/api/v1`을 붙이지 않으며 API Controller 경로를 저장하지 않는다.
+
+### API-014-1 WHOLESALE 메뉴 경로
+
+| 1뎁스 그룹  | 2뎁스 메뉴       | 권장 code                  | 정확한 `routePath`               |
+| ----------- | ---------------- | -------------------------- | -------------------------------- |
+| 대시보드    | 대시보드         | `WHOLESALE_DASHBOARD`      | `/admin/supplier/dashboard`      |
+| 마스터 관리 | 상품 관리        | `WHOLESALE_PRODUCTS`       | `/admin/supplier/products`       |
+| 마스터 관리 | 재고 관리        | `WHOLESALE_INVENTORY`      | `/admin/supplier/inventory`      |
+| 마스터 관리 | 재고 일괄 관리   | `WHOLESALE_INVENTORY_BULK` | `/admin/supplier/inventory/bulk` |
+| 입출고 관리 | 주문 관리        | `WHOLESALE_ORDERS`         | `/admin/supplier/orders`         |
+| 입출고 관리 | 입고 관리        | `WHOLESALE_STOCK_RECEIPTS` | `/admin/supplier/stock-receipts` |
+| 입출고 관리 | 출고 관리        | `WHOLESALE_SHIPMENTS`      | `/admin/supplier/shipments`      |
+| 입출고 관리 | 반품·취소        | `WHOLESALE_CLAIMS`         | `/admin/supplier/claims`         |
+| 정산 관리   | 정산 관리        | `WHOLESALE_SETTLEMENTS`    | `/admin/supplier/settlements`    |
+| 기타        | 거래처 관리      | `WHOLESALE_CLIENTS`        | `/admin/supplier/clients`        |
+| 기타        | 문의             | `WHOLESALE_INQUIRIES`      | `/admin/supplier/inquiries`      |
+| 기타        | 알림             | `WHOLESALE_NOTIFICATIONS`  | `/admin/supplier/notifications`  |
+| 기타        | 사업자·매장 관리 | `WHOLESALE_BUSINESS`       | `/admin/supplier/business`       |
+
+도매 상품 등록·상세·수정, 재고 등록·수정, 입고 등록·수정은 목록 화면 내부에서 진입하는 하위 업무 경로이므로 DB 메뉴에 별도 등록하지 않는다.
+
+### API-014-2 RETAIL 메뉴 경로
+
+| 1뎁스 그룹  | 2뎁스 메뉴       | 권장 code              | 정확한 `routePath`            |
+| ----------- | ---------------- | ---------------------- | ----------------------------- |
+| 대시보드    | 대시보드         | `RETAIL_DASHBOARD`     | `/admin/seller/dashboard`     |
+| 마스터 관리 | 상품 탐색        | `RETAIL_PRODUCTS`      | `/admin/seller/products`      |
+| 마스터 관리 | 찜 상품          | `RETAIL_WISHLISTS`     | `/admin/seller/wishlists`     |
+| 주문 관리   | 장바구니         | `RETAIL_CART`          | `/admin/seller/cart`          |
+| 주문 관리   | 주문 관리        | `RETAIL_ORDERS`        | `/admin/seller/orders`        |
+| 주문 관리   | 배송지 관리      | `RETAIL_ADDRESSES`     | `/admin/seller/addresses`     |
+| 정산 관리   | 결제·환불        | `RETAIL_PAYMENTS`      | `/admin/seller/payments`      |
+| 기타        | 문의             | `RETAIL_INQUIRIES`     | `/admin/seller/inquiries`     |
+| 기타        | 알림             | `RETAIL_NOTIFICATIONS` | `/admin/seller/notifications` |
+| 기타        | 사업자·매장 관리 | `RETAIL_BUSINESS`      | `/admin/seller/business`      |
+
+셀러 상품 상세와 주문 상세는 목록 화면에서 식별자를 붙여 이동하는 동적 경로이므로 DB 메뉴에 등록하지 않는다.
+
+### API-014-3 API 응답 및 검증 요청
+
+```ts
+export type MenuScope = 'WHOLESALE' | 'RETAIL'
+
+export interface MenuItem {
+  seq: number
+  code: string
+  name: string
+  depth: 1 | 2
+  routePath: string | null
+  icon: string | null
+  sortOrder: number
+  children: MenuItem[]
+}
+```
+
+- `scope=WHOLESALE`에는 `/admin/supplier/**`, `scope=RETAIL`에는 `/admin/seller/**` 경로만 반환한다.
+- 1뎁스의 `routePath`는 `null`로 반환하고 자식 메뉴는 `children`에 `sortOrder`, `seq` 순으로 포함한다.
+- 2뎁스의 `children`은 빈 배열이며 `routePath`는 위 표의 값과 정확히 일치해야 한다.
+- 비활성 메뉴는 응답에서 제외한다.
+- 관리자 계정은 명시한 scope를 조회할 수 있고 도매·셀러 일반 계정은 자기 권한 scope만 조회할 수 있어야 한다.
+- 수정 후 각 응답의 모든 non-null `routePath`에 대해 Vue Router 매칭 여부를 검증한다.
+- 프론트는 DB 메뉴 조회 실패 시 정적 메뉴를 fallback으로 사용하지만, 잘못된 `routePath` 자체를 프론트에서 임의 치환하지 않는다.
+
+서비스 관리자 메뉴는 현재 `/menus/navigation`의 scope 계약 대상이 아니다. 추후 `ADMIN` scope를 추가하려면 아래 실제 목록 경로를 사용한다.
+
+| 메뉴          | 프론트 경로                 |
+| ------------- | --------------------------- |
+| 전체 주문     | `/admin/orders`             |
+| 전체 문의     | `/admin/inquiries`          |
+| 사용자 관리   | `/admin/users`              |
+| 사업자 프로필 | `/admin/business-profiles`  |
+| 도매 매장     | `/admin/wholesale-stores`   |
+| 소매 매장     | `/admin/retail-stores`      |
+| 택배사 관리   | `/admin/delivery-companies` |
+
+## API-015 서비스 관리자 도매·소매 매장 사용자 정보
+
+- 상태: 요청 (2026-09-09)
+- 대상: `GET /api/v1/admin/wholesale-stores`, `GET /api/v1/admin/retail-stores`
+- 필요 필드: 각 매장 응답의 `userSeq`, `userId`, `userName`
+- 목적: 서비스 관리자 도매 매장·소매 매장 목록에 사업자 ID(`businessProfileSeq`), 사업자명(`companyName`), 사업장명(`storeName`), 대표 사용자 ID와 사용자명을 구분해 표시한다.
+- 현재 확인 결과: 백엔드 원본 가이드의 `WholesaleOwnedStore`와 `SellerBusinessStore`에는 사용자 필드가 추가됐지만, 관리자 `WholesaleStore`·`RetailStore` 계약과 실제 `WholesaleStoreResDTO`·`RetailStoreResDTO`에는 아직 없다.
+- 프론트 처리: 두 목록에 사용자 ID·사용자명 열을 추가하고 nullable 필드로 수용한다. 백엔드 응답에 필드가 없으면 `-`로 표시한다.
+- 확정 요청: 관리자 매장 응답에도 사업자 프로필 대표 사용자의 세 필드를 추가하고 nullable 기준을 확정해 `docs/frontend-api-guide.md` 13.2에 반영해 달라.
 
 ## API-012 서비스 관리자 전체 문의 관리 API
 

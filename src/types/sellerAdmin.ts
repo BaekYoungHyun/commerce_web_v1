@@ -58,6 +58,7 @@ export interface SellerWishlist {
   wholesale_store_seq: number
   wholesale_store_name: string
   price: number | null
+  total_stock_quantity: number
   product_status: string
   created_at: string
 }
@@ -69,6 +70,16 @@ export interface SellerBusinessResponse {
     representativeName: string
     approvalStatus: string
     approvedAt: string | null
-    stores: Array<{ seq: number; storeName: string; salesChannel: string | null; status: string }>
+    stores: Array<{
+      seq: number
+      businessProfileSeq: number
+      businessProfileName: string
+      userSeq: number
+      userId: string
+      userName: string
+      storeName: string
+      salesChannel: string | null
+      status: string
+    }>
   }>
 }

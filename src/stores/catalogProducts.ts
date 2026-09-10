@@ -60,15 +60,11 @@ export const useCatalogProductsStore = defineStore('catalogProducts', () => {
 
       try {
         try {
-          await productApi.createView(accessToken, productSeq, {
-            userId: authStore.user?.seq ?? null,
-          })
+          await productApi.createView(accessToken, productSeq)
         } catch (cause) {
           if (!(cause instanceof ApiError) || cause.status !== 401) throw cause
           accessToken = await authStore.refreshAccessToken()
-          await productApi.createView(accessToken, productSeq, {
-            userId: authStore.user?.seq ?? null,
-          })
+          await productApi.createView(accessToken, productSeq)
         }
       } catch (cause) {
         viewError.value = cause instanceof Error ? cause.message : '조회수를 기록하지 못했습니다.'

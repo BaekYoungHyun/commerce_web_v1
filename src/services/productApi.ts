@@ -6,7 +6,6 @@ import type {
   AdminProductPage,
   AdminProductUpdateRequest,
   ProductView,
-  ProductViewCreateRequest,
 } from '../types/adminProduct'
 
 const bearerHeaders = (accessToken: string) => ({ Authorization: `Bearer ${accessToken}` })
@@ -33,11 +32,10 @@ export const productApi = {
     })
   },
 
-  createView(accessToken: string, productSeq: number, payload: ProductViewCreateRequest) {
+  createView(accessToken: string, productSeq: number) {
     return apiRequest<ProductView>(`/products/${productSeq}/views`, {
       method: 'POST',
       headers: bearerHeaders(accessToken),
-      body: JSON.stringify(payload),
     })
   },
 
