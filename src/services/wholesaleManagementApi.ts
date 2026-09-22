@@ -10,6 +10,7 @@ import type {
   WholesaleBusinessRow,
   WholesaleClient,
   WholesaleStoreUpdateRequest,
+  WholesaleStoreCreateRequest,
   WholesaleStoreUpdateResponse,
   WholesaleSettlement,
 } from '../types/wholesaleManagement'
@@ -64,6 +65,12 @@ export const wholesaleManagementApi = {
   updateStore: (token: string, storeSeq: number, body: WholesaleStoreUpdateRequest) =>
     apiRequest<WholesaleStoreUpdateResponse>(`/wholesale/management/stores/${storeSeq}`, {
       method: 'PUT',
+      headers: headers(token),
+      body: JSON.stringify(body),
+    }),
+  createStore: (token: string, body: WholesaleStoreCreateRequest) =>
+    apiRequest<WholesaleStoreUpdateResponse>('/wholesale/management/stores', {
+      method: 'POST',
       headers: headers(token),
       body: JSON.stringify(body),
     }),

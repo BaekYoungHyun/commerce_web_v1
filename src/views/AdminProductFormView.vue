@@ -5,6 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../services/httpClient'
 import { useAdminProductsStore } from '../stores/adminProducts'
 import { useCategoriesStore } from '../stores/categories'
+import { useWholesaleFulfillmentStore } from '../stores/wholesaleFulfillment'
+import type { WholesaleOwnedStore } from '../types/wholesaleFulfillment'
 import type {
   AdminProductImageRequest,
   AdminProductOptionRequest,
@@ -16,6 +18,10 @@ const route = useRoute()
 const router = useRouter()
 const store = useAdminProductsStore()
 const categoriesStore = useCategoriesStore()
+const fulfillmentStore = useWholesaleFulfillmentStore()
+const ownedStores = ref<WholesaleOwnedStore[]>([])
+const storesLoading = ref(true)
+const storesError = ref('')
 const { saving, loading, fieldErrors } = storeToRefs(store)
 const {
   options: categoryOptions,
@@ -36,6 +42,22 @@ const form = reactive({
   options: [] as AdminProductOptionRequest[],
   variants: [] as AdminProductVariantRequest[],
 })
+const hasSelectedStore = computed(() =>
+  ownedStores.value.some((item) => item.seq === form.wholesaleStoreSeq),
+)
+
+async function loadStores() {
+  storesLoading.value = true
+  storesError.value = ''
+  try {
+    ownedStores.value = await fulfillmentStore.fetchStores()
+  } catch (cause) {
+    ownedStores.value = []
+    storesError.value = cause instanceof Error ? cause.message : '도매 매장을 불러오지 못했습니다.'
+  } finally {
+    storesLoading.value = false
+  }
+}
 
 const addImage = () =>
   form.images.push({ imageUrl: '', imageType: 'DETAIL', sortOrder: form.images.length })
@@ -77,8 +99,12 @@ async function loadForEdit() {
 
 async function submit() {
   submitError.value = ''
+  if (storesLoading.value || storesError.value || !hasSelectedStore.value) {
+    submitError.value = '본인 소유 도매 매장을 선택해 주세요.'
+    return
+  }
   if (form.wholesaleStoreSeq === null || form.categorySeq === null || !form.name.trim()) {
-    submitError.value = '도매상 SEQ, 카테고리 SEQ, 상품명을 입력해 주세요.'
+    submitError.value = '도매 매장과 카테고리를 선택하고 상품명을 입력해 주세요.'
     return
   }
   if (
@@ -135,6 +161,7 @@ async function submit() {
 }
 
 onMounted(loadForEdit)
+onMounted(loadStores)
 </script>
 
 <template>
@@ -158,18 +185,49 @@ onMounted(loadForEdit)
         <div class="admin-form-section-heading">
           <div>
             <strong>상품 기본 정보</strong
-            ><span>도매상, 카테고리와 상품 노출 정보를 설정합니다.</span>
+            ><span>도매 매장, 카테고리와 상품 노출 정보를 설정합니다.</span>
           </div>
           <b>01</b>
         </div>
         <div class="admin-full-form-grid">
           <label
-            ><span class="form-label-title">도매상 SEQ <em>필수</em></span
-            ><input v-model.number="form.wholesaleStoreSeq" required min="1" type="number" /><small
-              v-if="fieldErrors.wholesaleStoreSeq"
+            ><span class="form-label-title">도매 매장 <em>필수</em></span
+            ><select
+              v-model="form.wholesaleStoreSeq"
+              required
+              :disabled="storesLoading || !!storesError || !ownedStores.length"
+            >
+              <option :value="null" disabled>
+                {{ storesLoading ? '매장을 불러오는 중...' : '도매 매장을 선택하세요' }}
+              </option>
+              <option
+                v-if="form.wholesaleStoreSeq !== null && !hasSelectedStore"
+                :value="form.wholesaleStoreSeq"
+                disabled
+              >
+                기존 매장 SEQ {{ form.wholesaleStoreSeq }} (선택 목록에 없음)
+              </option>
+              <option v-for="item in ownedStores" :key="item.seq" :value="item.seq">
+                {{ item.storeName }} (매장 SEQ {{ item.seq }})
+              </option>
+            </select>
+            <small>사업자·매장 관리의 도매 매장 SEQ로 저장됩니다. 사업자 SEQ가 아닙니다.</small>
+            <small v-if="storesError" class="field-error" role="alert"
+              >{{ storesError }} <button type="button" @click="loadStores">다시 시도</button></small
+            >
+            <small v-else-if="!storesLoading && !ownedStores.length" class="field-error"
+              >선택 가능한 도매 매장이 없습니다.
+              <RouterLink to="/admin/supplier/business">사업자·매장 관리 확인</RouterLink></small
+            >
+            <small
+              v-else-if="!storesLoading && form.wholesaleStoreSeq !== null && !hasSelectedStore"
               class="field-error"
-              >{{ fieldErrors.wholesaleStoreSeq }}</small
-            ></label
+              >기존 매장을 선택 목록에서 확인할 수 없습니다. 소유 매장을 확인하고 선택해
+              주세요.</small
+            >
+            <small v-if="fieldErrors.wholesaleStoreSeq" class="field-error">{{
+              fieldErrors.wholesaleStoreSeq
+            }}</small></label
           >
           <label
             ><span class="form-label-title">카테고리 <em>필수</em></span
@@ -406,7 +464,11 @@ onMounted(loadForEdit)
       <p v-if="submitError" class="admin-form-error" role="alert">{{ submitError }}</p>
       <div class="admin-form-footer">
         <RouterLink to="/admin/supplier/products">취소</RouterLink
-        ><button class="admin-primary-button" type="submit" :disabled="saving">
+        ><button
+          class="admin-primary-button"
+          type="submit"
+          :disabled="saving || storesLoading || !!storesError || !hasSelectedStore"
+        >
           {{ saving ? '저장 중...' : isEditing ? '변경사항 저장' : '상품 등록' }}
         </button>
       </div>

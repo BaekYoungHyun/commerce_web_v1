@@ -40,6 +40,7 @@ export interface AdminProductVariant {
   status: string
   availableQuantity: number
   reservedQuantity: number
+  shippedQuantity: number
 }
 
 export interface ProductView {

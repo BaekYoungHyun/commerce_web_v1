@@ -58,4 +58,45 @@ describe('sellerAdminApi', () => {
       expect.objectContaining({ method: 'POST', body: JSON.stringify(body) }),
     )
   })
+
+  it('본인 사업자 SEQ와 함께 소매 매장을 등록한다', async () => {
+    const body = {
+      businessProfileSeq: 9,
+      storeName: '셀러 매장',
+      salesChannel: '온라인몰',
+      status: 'ACTIVE' as const,
+    }
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ seq: 31, ...body }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sellerAdminApi.createStore('token', body)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/seller/stores'),
+      expect.objectContaining({ method: 'POST', body: JSON.stringify(body) }),
+    )
+  })
+
+  it('소매 매장 수정 시 경로 SEQ를 사용하고 사업자 SEQ를 본문에 보내지 않는다', async () => {
+    const body = { storeName: '수정 매장', salesChannel: null, status: 'INACTIVE' as const }
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ seq: 31, businessProfileSeq: 9, ...body }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sellerAdminApi.updateStore('token', 31, body)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/seller/stores/31'),
+      expect.objectContaining({ method: 'PUT', body: JSON.stringify(body) }),
+    )
+  })
 })

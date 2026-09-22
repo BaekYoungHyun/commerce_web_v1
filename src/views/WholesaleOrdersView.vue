@@ -10,6 +10,12 @@ const store = useWholesaleFulfillmentStore()
 const { stores, orders, ordersPagination, loading, pendingKey, error } = storeToRefs(store)
 const wholesaleStoreSeq = ref<number | null>(null)
 const status = ref('')
+const keyword = ref('')
+const orderedFrom = ref('')
+const orderedTo = ref('')
+const selectedItemSeqs = ref<number[]>([])
+const bulkStatus = ref<'PRODUCT_PREPARING' | 'PRODUCT_READY'>('PRODUCT_PREPARING')
+const bulkFeedback = ref('')
 const selectedStatuses = reactive<Record<number, OrderItemFulfillmentStatus>>({})
 const statuses: Array<{ value: OrderItemFulfillmentStatus; label: string }> = [
   { value: 'PRODUCT_ORDERED', label: '주문상품' },
@@ -38,11 +44,22 @@ const canSelectStatus = (
   return candidateIndex === currentIndex || candidateIndex === currentIndex + 1
 }
 const count = computed(() => orders.value.reduce((sum, order) => sum + order.items.length, 0))
+const selectedItems = computed(() =>
+  orders.value.flatMap((order) =>
+    order.items
+      .filter((item) => selectedItemSeqs.value.includes(item.orderItemSeq))
+      .map((item) => ({ orderSeq: order.orderSeq, orderItemSeq: item.orderItemSeq })),
+  ),
+)
 
 async function load(
   requestedPage: unknown = ordersPagination.value.page,
   requestedSize = ordersPagination.value.size,
 ) {
+  if (orderedFrom.value && orderedTo.value && orderedFrom.value > orderedTo.value) {
+    bulkFeedback.value = '주문 시작일은 종료일보다 늦을 수 없습니다.'
+    return
+  }
   const page = typeof requestedPage === 'number' ? requestedPage : 0
   await store
     .fetchOrders({
@@ -50,6 +67,9 @@ async function load(
       size: requestedSize,
       wholesaleStoreSeq: wholesaleStoreSeq.value || undefined,
       status: status.value || undefined,
+      keyword: keyword.value || undefined,
+      orderedFrom: orderedFrom.value || undefined,
+      orderedTo: orderedTo.value || undefined,
     })
     .catch(() => undefined)
   for (const order of orders.value)
@@ -58,7 +78,25 @@ async function load(
 const reset = () => {
   wholesaleStoreSeq.value = null
   status.value = ''
+  keyword.value = ''
+  orderedFrom.value = ''
+  orderedTo.value = ''
+  bulkFeedback.value = ''
   load(0)
+}
+const saveBulkStatus = async () => {
+  if (!selectedItems.value.length) return
+  bulkFeedback.value = ''
+  await store
+    .updateOrderItemStatuses({ items: selectedItems.value, status: bulkStatus.value })
+    .then((response) => {
+      const failedSeqs = new Set(response.failed.map((item) => item.seq))
+      selectedItemSeqs.value = selectedItemSeqs.value.filter((seq) => failedSeqs.has(seq))
+      bulkFeedback.value = response.failed.length
+        ? `${response.succeeded.length}건 성공, ${response.failed.length}건 실패: ${response.failed.map((item) => item.message).join(', ')}`
+        : `${response.succeeded.length}개 주문의 상태를 변경했습니다.`
+    })
+    .catch(() => undefined)
 }
 const saveStatus = async (orderSeq: number, item: WholesaleOrderItem) => {
   await store
@@ -99,6 +137,11 @@ onMounted(async () => {
     </header>
     <form class="admin-filter-panel fulfillment-filters" @submit.prevent="load(0)">
       <label
+        ><span>통합 검색</span
+        ><input v-model="keyword" placeholder="발주번호·매장·상호·상품·SKU" /></label
+      ><label><span>주문 시작일</span><input v-model="orderedFrom" type="date" /></label
+      ><label><span>주문 종료일</span><input v-model="orderedTo" type="date" /></label>
+      <label
         ><span>내 도매 매장</span
         ><select v-model="wholesaleStoreSeq">
           <option :value="null">내 전체 매장</option>
@@ -119,6 +162,21 @@ onMounted(async () => {
       ><button class="admin-reset-button" type="button" @click="reset">↻ 초기화</button
       ><button class="admin-search-button" type="submit">검색</button>
     </form>
+    <div class="fulfillment-bulk-bar">
+      <strong>선택 {{ selectedItems.length }}건</strong>
+      <select v-model="bulkStatus" aria-label="일괄 변경 상태">
+        <option value="PRODUCT_PREPARING">상품 준비중</option>
+        <option value="PRODUCT_READY">상품 준비 완료</option>
+      </select>
+      <button
+        type="button"
+        :disabled="!selectedItems.length || pendingKey === 'order-items-bulk'"
+        @click="saveBulkStatus"
+      >
+        선택 상태 일괄 변경
+      </button>
+    </div>
+    <p v-if="bulkFeedback" class="admin-list-message" role="status">{{ bulkFeedback }}</p>
     <p v-if="error" class="admin-list-error" role="alert">
       {{ error }} <button type="button" @click="load">다시 시도</button>
     </p>
@@ -153,6 +211,7 @@ onMounted(async () => {
           <table class="fulfillment-items-table">
             <thead>
               <tr>
+                <th>선택</th>
                 <th>도매 매장</th>
                 <th>상품</th>
                 <th>옵션</th>
@@ -164,6 +223,15 @@ onMounted(async () => {
             </thead>
             <tbody>
               <tr v-for="item in order.items" :key="item.orderItemSeq">
+                <td>
+                  <input
+                    v-model="selectedItemSeqs"
+                    type="checkbox"
+                    :value="item.orderItemSeq"
+                    :disabled="item.status === 'PRODUCT_READY'"
+                    :aria-label="`${item.productName} 선택`"
+                  />
+                </td>
                 <td>{{ item.wholesaleStoreName ?? `#${item.wholesaleStoreSeq}` }}</td>
                 <td>
                   <strong>{{ item.productName }}</strong

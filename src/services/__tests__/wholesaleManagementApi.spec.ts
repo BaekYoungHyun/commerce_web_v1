@@ -4,6 +4,41 @@ import { wholesaleManagementApi } from '../wholesaleManagementApi'
 describe('wholesaleManagementApi', () => {
   afterEach(() => vi.unstubAllGlobals())
 
+  it('본인 사업자 SEQ와 매장 정보로 도매 매장 등록 API를 호출한다', async () => {
+    const body = {
+      businessProfileSeq: 9,
+      storeName: '매장',
+      marketName: null,
+      floorRoom: null,
+      status: 'ACTIVE' as const,
+    }
+    const response = {
+      wholesale_store_seq: 42,
+      store_name: '매장',
+      market_name: null,
+      floor_room: null,
+      status: 'ACTIVE',
+    }
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify(response), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(wholesaleManagementApi.createStore('token', body)).resolves.toEqual(response)
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/wholesale/management/stores'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer token' }),
+        body: JSON.stringify(body),
+      }),
+    )
+  })
+
   it('상태 조건으로 클레임을 조회한다', async () => {
     const claim = { seq: 4, claim_type: 'RETURN', quantity: 1, reason: null, status: 'REQUESTED' }
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(

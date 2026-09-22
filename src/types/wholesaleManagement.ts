@@ -73,6 +73,10 @@ export interface WholesaleStoreUpdateRequest {
   status: 'ACTIVE' | 'INACTIVE'
 }
 
+export interface WholesaleStoreCreateRequest extends WholesaleStoreUpdateRequest {
+  businessProfileSeq: number
+}
+
 export interface WholesaleStoreUpdateResponse {
   wholesale_store_seq: number
   store_name: string

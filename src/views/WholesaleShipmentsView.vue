@@ -11,6 +11,8 @@ const { stores, shipments, shipmentsPagination, deliveryCompanies, loading, pend
   storeToRefs(store)
 const wholesaleStoreSeq = ref<number | null>(null)
 const status = ref('')
+const selectedShipmentSeqs = ref<number[]>([])
+const bulkFeedback = ref('')
 const drafts = reactive<
   Record<number, { status: ShipmentStatus; deliveryCompanyCode: string; trackingNumber: string }>
 >({})
@@ -81,6 +83,50 @@ const shipmentSaveDisabled = (shipmentSeq: number, currentStatus: ShipmentStatus
 }
 const isKnownDeliveryCompany = (code: string) =>
   deliveryCompanies.value.some((company) => company.code === code)
+const trackingUrl = (deliveryCompanyCode: string | null, trackingNumber: string | null) => {
+  if (!deliveryCompanyCode || !trackingNumber) return null
+  const template = deliveryCompanies.value.find(
+    (company) => company.code === deliveryCompanyCode,
+  )?.trackingUrlTemplate
+  if (!template || !/^https?:\/\//i.test(template)) return null
+  return template.replace('{trackingNumber}', encodeURIComponent(trackingNumber))
+}
+const saveBulkStatus = async () => {
+  const selected = shipments.value
+    .filter(
+      (shipment) =>
+        selectedShipmentSeqs.value.includes(shipment.shipmentSeq) &&
+        shipment.status === 'SHIPMENT_PREPARING',
+    )
+    .map((shipment) => ({ shipment, draft: drafts[shipment.shipmentSeq] }))
+  const invalid = selected.filter(
+    ({ draft }) => !draft?.deliveryCompanyCode.trim() || !draft.trackingNumber.trim(),
+  )
+  if (!selected.length || invalid.length) {
+    bulkFeedback.value = invalid.length
+      ? '선택한 모든 출고에 택배사와 송장번호를 입력해 주세요.'
+      : '출고 준비중인 항목을 선택해 주세요.'
+    return
+  }
+  bulkFeedback.value = ''
+  await store
+    .updateShipmentStatuses({
+      status: 'SHIPPED',
+      shipments: selected.map(({ shipment, draft }) => ({
+        shipmentSeq: shipment.shipmentSeq,
+        deliveryCompanyCode: draft!.deliveryCompanyCode.trim(),
+        trackingNumber: draft!.trackingNumber.trim(),
+      })),
+    })
+    .then((response) => {
+      const failedSeqs = new Set(response.failed.map((item) => item.seq))
+      selectedShipmentSeqs.value = selectedShipmentSeqs.value.filter((seq) => failedSeqs.has(seq))
+      bulkFeedback.value = response.failed.length
+        ? `${response.succeeded.length}건 성공, ${response.failed.length}건 실패: ${response.failed.map((item) => item.message).join(', ')}`
+        : `${response.succeeded.length}건의 출고를 완료했습니다.`
+    })
+    .catch(() => undefined)
+}
 const saveQuantity = (shipmentSeq: number, itemSeq: number) =>
   store
     .updateShipmentQuantity(shipmentSeq, itemSeq, quantities[itemSeq] ?? 1)
@@ -99,7 +145,7 @@ onMounted(async () => {
       <div>
         <p>WHOLESALE SHIPMENTS</p>
         <h1>출고 관리</h1>
-        <span>자동 생성된 출고의 수량·택배사·송장·상태를 관리합니다.</span>
+        <span>상품 SKU·옵션을 확인하고 출고 수량·택배사·송장·상태를 관리합니다.</span>
       </div>
       <div class="fulfillment-summary">
         <strong>{{ shipments.length }}</strong
@@ -131,6 +177,19 @@ onMounted(async () => {
       ><button class="admin-search-button" type="submit">검색</button>
     </form>
 
+    <div class="fulfillment-bulk-bar">
+      <strong>선택 {{ selectedShipmentSeqs.length }}건</strong>
+      <span>각 출고의 택배사·송장번호를 확인한 뒤 일괄 완료합니다.</span>
+      <button
+        type="button"
+        :disabled="!selectedShipmentSeqs.length || pendingKey === 'shipments-bulk'"
+        @click="saveBulkStatus"
+      >
+        선택 출고 일괄 완료
+      </button>
+    </div>
+    <p v-if="bulkFeedback" class="admin-list-message" role="status">{{ bulkFeedback }}</p>
+
     <p v-if="error" class="admin-list-error" role="alert">
       {{ error }} <button type="button" @click="load">다시 시도</button>
     </p>
@@ -143,7 +202,14 @@ onMounted(async () => {
       >
         <header>
           <div>
-            <span>{{ shipment.orderNo }}</span
+            <label class="fulfillment-select-row"
+              ><input
+                v-model="selectedShipmentSeqs"
+                type="checkbox"
+                :value="shipment.shipmentSeq"
+                :disabled="shipment.status === 'SHIPPED'"
+              /><span class="sr-only">출고 {{ shipment.shipmentSeq }} 선택</span></label
+            ><span>{{ shipment.orderNo }}</span
             ><strong>SHIPMENT #{{ shipment.shipmentSeq }}</strong>
           </div>
           <dl>
@@ -160,6 +226,17 @@ onMounted(async () => {
             <div>
               <dt>출고일</dt>
               <dd>{{ formatDateTime(shipment.shippedAt) }}</dd>
+            </div>
+            <div v-if="trackingUrl(shipment.deliveryCompanyCode, shipment.trackingNumber)">
+              <dt>배송조회</dt>
+              <dd>
+                <a
+                  :href="trackingUrl(shipment.deliveryCompanyCode, shipment.trackingNumber)!"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >송장 조회</a
+                >
+              </dd>
             </div>
           </dl>
         </header>
@@ -220,6 +297,8 @@ onMounted(async () => {
             <thead>
               <tr>
                 <th>상품</th>
+                <th>SKU</th>
+                <th>옵션</th>
                 <th>Product ID</th>
                 <th>Variant ID</th>
                 <th>주문 수량</th>
@@ -232,6 +311,12 @@ onMounted(async () => {
                 <td>
                   <strong>{{ item.productName }}</strong
                   ><small>Order Item #{{ item.orderItemSeq }}</small>
+                </td>
+                <td>
+                  <strong>{{ item.sku || '-' }}</strong>
+                </td>
+                <td>
+                  {{ [item.color, item.size].filter(Boolean).join(' / ') || '-' }}
                 </td>
                 <td>#{{ item.productSeq }}</td>
                 <td>#{{ item.variantSeq }}</td>

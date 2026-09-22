@@ -1,6 +1,6 @@
 # Commerce 프론트엔드 API 개발 가이드
 
-> 최종 갱신일: 2026-09-07  
+> 최종 갱신일: 2026-09-21
 > 대상 API: Commerce Backend `/api/v1`  
 > 문서 상태: 현재 백엔드 구현 기준
 
@@ -754,6 +754,7 @@ export interface ProductVariant {
   status: string;
   availableQuantity: number;
   reservedQuantity: number;
+  shippedQuantity: number;
 }
 
 export interface ProductPage {
@@ -1490,15 +1491,21 @@ API는 준비 완료이면서 아직 출고에 배정되지 않은 상품만 준
 |---|---|---|---:|
 | 내 도매 매장 선택 목록 | `GET` | `/api/v1/wholesale/stores` | `200` |
 | 도매 주문 목록 | `GET` | `/api/v1/wholesale/orders` | `200 PageResponse<WholesaleOrder>` |
+| 도매 주문 상세 | `GET` | `/api/v1/wholesale/orders/{orderSeq}` | `200 WholesaleOrder` |
 | 주문 상품 상태 변경 | `PATCH` | `/api/v1/wholesale/orders/{orderSeq}/items/{orderItemSeq}/status` | `200` |
+| 주문 상품 상태 다건 변경 | `PATCH` | `/api/v1/wholesale/orders/items/status` | `200 BulkOperationResponse<WholesaleOrder>` |
 | 출고 정보 생성 | `POST` | `/api/v1/wholesale/orders/{orderSeq}/shipments` | `201` |
 | 출고 목록 | `GET` | `/api/v1/wholesale/shipments` | `200 PageResponse<Shipment>` |
 | 활성 택배사 선택 목록 | `GET` | `/api/v1/wholesale/delivery-companies` | `200` |
 | 출고 상태 변경 | `PATCH` | `/api/v1/wholesale/shipments/{shipmentSeq}/status` | `200` |
+| 출고 상태 다건 변경 | `PATCH` | `/api/v1/wholesale/shipments/status` | `200 BulkOperationResponse<Shipment>` |
 | 출고 수량 변경 | `PUT` | `/api/v1/wholesale/shipments/{shipmentSeq}/items/{shipmentItemSeq}/quantity` | `200` |
 
-목록 API는 공통 `page`, `size`와 선택 query `wholesaleStoreSeq`, `status`를 받는다. 주문 목록의 `status`는 주문
-상품 상태를, 출고 목록의 `status`는 출고 상태를 필터링한다.
+목록 API는 공통 `page`, `size`와 선택 query `wholesaleStoreSeq`, `status`를 받는다. 주문 목록은 추가로
+`keyword`, `orderedFrom`, `orderedTo`를 지원한다. `keyword`는 발주번호·소매 매장명·구매처 상호·상품명·SKU를
+대소문자 구분 없이 검색한다. 날짜는 `yyyy-MM-dd`이며 Asia/Seoul 기준 시작일 00:00 이상, 종료일 다음 날
+00:00 미만으로 조회한다. `orderedFrom > orderedTo`이면 `400`이다. 주문 목록의 `status`는 주문 상품 상태를,
+출고 목록의 `status`는 출고 상태를 필터링한다.
 
 도매 주문 목록과 상태 변경은 로그인 사용자가 소유한 도매 매장 범위로 제한된다. 하나의 주문에
 여러 도매업체 상품이 포함돼도 응답 `items`에는 로그인 도매업체 소유 상품만 포함되며,
@@ -1543,6 +1550,12 @@ export type ShipmentStatus = 'SHIPMENT_PREPARING' | 'SHIPPED';
 export interface DeliveryCompanyOption {
   code: string;
   name: string;
+  trackingUrlTemplate: string | null;
+}
+
+export interface BulkOperationResponse<T> {
+  succeeded: T[];
+  failed: Array<{ seq: number; code: string; message: string }>;
 }
 
 export interface WholesaleOrderItem {
@@ -1591,6 +1604,9 @@ export interface Shipment {
     productSeq: number;
     variantSeq: number;
     productName: string;
+    sku: string | null;
+    color: string | null;
+    size: string | null;
     orderedQuantity: number;
     shipmentQuantity: number;
   }>;
@@ -1605,6 +1621,28 @@ export interface Shipment {
 
 주문 품목 상태 변경 API의 성공 응답은 로그인 사용자가 소유한 매장 품목을 모두 포함한
 `WholesaleOrder` 전체 객체다. 프론트는 성공 응답으로 해당 주문을 통째로 교체할 수 있다.
+
+다건 변경은 요청 항목별 독립 처리다. 일부 항목이 실패해도 HTTP 응답은 `200`이며 성공 결과는
+`succeeded`, 실패 항목은 `failed`에 반환된다. 프론트는 `failed.length`를 확인하고 실패 행에
+`message`를 표시한 뒤 성공한 주문/출고만 응답 객체로 갱신한다. 동일 식별자를 요청에 중복 전송하지 않는다.
+
+```ts
+export interface OrderItemBulkStatusUpdateRequest {
+  items: Array<{ orderSeq: number; orderItemSeq: number }>;
+  status: 'PRODUCT_PREPARING' | 'PRODUCT_READY';
+}
+
+export interface ShipmentBulkStatusUpdateRequest {
+  shipments: Array<{
+    shipmentSeq: number;
+    deliveryCompanyCode: string;
+    trackingNumber: string;
+  }>;
+  status: 'SHIPPED';
+}
+```
+
+각 배열은 1~100건이다. 출고 완료 다건 요청도 각 출고에 택배사 코드와 송장번호가 필요하다.
 
 요청 예시는 다음과 같다.
 
@@ -1623,7 +1661,8 @@ export interface Shipment {
 자동 생성 시 택배사와 송장번호는 `null`일 수 있다. 출고 완료 변경 시에는 둘 다 필수다.
 화면 진입 시 `GET /api/v1/wholesale/delivery-companies`를 조회해 `name`을 select 표시값으로,
 `code`를 option value로 사용한다. 택배사 코드를 사용자가 직접 입력받지 않는다. 목록에는 활성
-택배사만 포함되며 택배사명·코드 오름차순이다.
+택배사만 포함되며 택배사명·코드 오름차순이다. `trackingUrlTemplate`이 있으면 `{trackingNumber}`를
+URL 인코딩한 실제 송장번호로 치환해 배송조회 링크를 만들고, 템플릿이 없으면 링크를 숨긴다.
 
 ```ts
 const deliveryCompanies = await api.get<DeliveryCompanyOption[]>(
@@ -1986,6 +2025,7 @@ export interface WholesaleInventory {
   wholesaleStoreName: string | null;
   availableQuantity: number;
   reservedQuantity: number;
+  shippedQuantity: number;
   totalQuantity: number;
   updatedAt: string;
 }
@@ -2438,6 +2478,42 @@ export const sellerAdminApi = {
 문의, 알림, 사업자·매장 관리. 현재 상품·주문·입고·출고·재고·문의·알림 API가 구현되어 있고,
 대시보드·반품/취소·정산·거래처·사업자/매장 API는 `/api/v1/wholesale/management/**`에 구현되어 있다.
 
+### 셀러 매장 등록·수정 및 도매 UI 통일 (2026-09-15, COMMERCE_SellerMenuMove_002)
+
+기존 본인 사업자·매장 조회에 소매 매장 등록·수정을 추가한다. 사업자 프로필 자체의 등록·수정·승인은 범위에 포함하지 않는다.
+
+| 동작 | API | 성공 | 응답 |
+|---|---|---|---|
+| 본인 사업자·매장 조회 | GET `/api/v1/seller/business` | 200 | `SellerBusinessResponse` |
+| 매장 등록 | POST `/api/v1/seller/stores` | 201 | `SellerStoreMutationResponse` |
+| 매장 수정 | PUT `/api/v1/seller/stores/{storeSeq}` | 200 | `SellerStoreMutationResponse` |
+
+- 등록의 `businessProfileSeq`는 GET에서 선택한 본인 사업자 SEQ이며 사용자 ID/SEQ를 보내지 않는다. 매장 없는 `stores: []` 사업자도 선택 가능하다.
+- PUT은 사업자 연결을 변경하지 않으므로 `businessProfileSeq` 없이 전체 편집 필드를 전송한다.
+- `storeName`은 trim 후 필수·최대 150자, `salesChannel`은 선택·최대 50자이며 빈 문자열은 `null`로 전송한다.
+- `status`는 필수 `ACTIVE | INACTIVE`이고 신규 기본값은 `ACTIVE`다. 응답은 camelCase이며 도매 응답의 snake_case와 혼용하지 않는다.
+- 권한은 `ROLE_RETAIL`, `ROLE_ADMIN`, `ROLE_SYSTEMADMIN`이며 서버가 토큰 사용자 소유 범위를 제한한다.
+
+```ts
+export type SellerEditableStoreStatus = 'ACTIVE' | 'INACTIVE';
+export interface SellerStoreCreateRequest {
+  businessProfileSeq: number;
+  storeName: string;
+  salesChannel?: string | null;
+  status: SellerEditableStoreStatus;
+}
+export type SellerStoreUpdateRequest = Omit<SellerStoreCreateRequest, 'businessProfileSeq'>;
+export interface SellerStoreMutationResponse {
+  seq: number;
+  businessProfileSeq: number;
+  storeName: string;
+  salesChannel: string | null;
+  status: SellerEditableStoreStatus;
+}
+```
+
+화면은 `/admin/seller/business`에서 도매 사업자·매장 관리의 목록·모달 패턴을 재사용한다. 등록/수정 성공 후 GET만 재조회하고, 목록 갱신 실패 시 저장 성공과 갱신 실패를 구분한다. POST/PUT은 자동 재전송하지 않는다. `400 C001` 필드 오류는 입력 옆에 표시하고, `404 BP002/RS001`, `409 RS002`, 5xx·네트워크 오류는 입력과 팝업을 유지한다. 저장 중 중복 제출·닫기를 막고, 늦게 끝난 조회는 요청 식별자로 최신 결과를 덮지 못하게 한다.
+
 ### 14.2 도매 관리자 메뉴 API 매핑
 
 | 메뉴 | Method | 경로 |
@@ -2453,7 +2529,37 @@ export const sellerAdminApi = {
 | 거래처 | `GET` | `/api/v1/wholesale/management/clients` |
 | 문의 | `GET/POST` | `/api/v1/support/inquiries` |
 | 알림 | `GET/PATCH` | `/api/v1/notifications/**` |
-| 사업자·매장 | `GET/PUT` | `/api/v1/wholesale/management/business`, `/stores/{storeSeq}` |
+| 사업자·매장 | `GET/POST/PUT` | `/api/v1/wholesale/management/business`, `/stores`, `/stores/{storeSeq}` |
+
+### 도매 매장 등록·수정 (2026-09-14, COMMERCE_SellerAdminUX_006)
+
+- 등록: `POST /api/v1/wholesale/management/stores`, 성공 `201 Created`.
+- 수정: `PUT /api/v1/wholesale/management/stores/{storeSeq}`, 성공 `200 OK`.
+- 등록의 `businessProfileSeq`는 본인 사업자 선택값이다. 선택 목록은 기존 `GET /api/v1/wholesale/management/business`의 사업자 중복을 제거해 사용하며 매장 없는 사업자도 포함된다.
+- 등록은 INSERT 자체에서 선택 사업자와 인증 사용자 소유 관계를 확인한다. 미존재·비소유 사업자는 동일하게 `404 BP002`, 비소유 수정 매장은 기존 `404 WS001`이다.
+- 인증 없음은 `401`, RETAIL 접근은 `403`, 필수값·길이·상태 검증 실패는 `400`이다. 등록·수정 모두 `status`는 필수이며 `ACTIVE | INACTIVE`만 허용한다.
+- 기존 ADMIN API의 전체 사업자 선택 권한을 도매 사용자에게 확대하지 않는다. 도매 화면의 수정에서는 사업자 연결을 변경하지 않는다.
+
+```ts
+export interface WholesaleStoreCreateRequest {
+  businessProfileSeq: number; // 1 이상의 정수
+  storeName: string; // 필수, 최대 150자
+  marketName?: string | null; // 최대 100자
+  floorRoom?: string | null; // 최대 50자
+  status: 'ACTIVE' | 'INACTIVE';
+}
+export type WholesaleStoreUpdateRequest = Omit<WholesaleStoreCreateRequest, 'businessProfileSeq'>;
+export interface WholesaleStoreMutationResponse {
+  wholesale_store_seq: number;
+  store_name: string;
+  market_name: string | null;
+  floor_room: string | null;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+```
+
+등록·수정 성공 후 사업자·매장 목록을 재조회한다. 저장 실패 시 팝업과 입력값을 유지하며,
+저장 중 중복 제출·닫기를 막는다. 실행 서버에 반영하려면 별도 백엔드 배포가 필요하다.
 
 대시보드 응답은 `store_count`, `product_count`, `order_item_count`, `low_stock_count`,
 `requested_claim_count`를 반환한다. 재고 부족 기준은 현재 `available_quantity <= 5`다.

@@ -3,7 +3,9 @@
 > 이 문서는 `AGENTS.md`에 따라 프로젝트의 방향, 현재 상태, 작업 이력, API 연동 정보를 지속적으로 기록한다. 이후 작업을 시작하기 전에 항상 확인하고, 변경 사항이 생기면 함께 갱신한다.
 
 - 모든 작업 전 백엔드 원본 `/Users/yh.baek/work/workspace_BE/commerce/docs/frontend-api-guide.md`를 먼저 검토한다. API 연동은 프론트의 `docs/frontend-api-guide.md`와 대조하고 백엔드 원본 계약을 우선한다.
-- `docs/frontend-api-guide.md`의 현재 최신 확정 계약일은 2026-09-08이며, 백엔드 원본과 동기화했다. (2026-09-08 확인)
+- `docs/frontend-api-guide.md`의 현재 최신 확정 계약일은 2026-09-21이며, 백엔드 원본의 도매 주문·출고 신규 계약과 동기화했다. (2026-09-21 확인)
+- 2026-09-21 품질 검토에서 도매 상품 등록·수정 화면 테스트의 Vitest mock 함수에 명시적 시그니처를 추가해 `vitest(require-mock-type-parameters)` 린트 오류를 해소했다. 전체 테스트·린트·타입 검사·프로덕션 빌드로 검증했으며 API 계약 변경은 없다. (`COMMERCE_QualityReview_001`)
+- 2026-09-21 백엔드 원본 가이드의 도매 주문 키워드·기간 검색, 주문 상세, 주문 품목·출고 다건 상태 변경, 택배사 배송조회 URL 계약을 타입·API·스토어·도매 주문/출고 화면에 반영했다. 다건 응답은 부분 성공을 유지하고 실패 항목을 선택 상태와 메시지로 남긴다. (`COMMERCE_ApiGuideSync_011`)
 - 2026-09-07 보안·주문 계약에 따라 상품 조회 로그는 body 없이 토큰 사용자를 기록하고, 셀러 주문 상세에 주문 취소와 품목 클레임 접수를 연결했다. 도매 정산 산출 요청 함수는 추가했으며 미확정 성공 응답 DTO는 `docs/api-guide.md` API-013에 기록했다. (`COMMERCE_ApiGuideSync_001`)
 - 백엔드 Controller·Service를 확인해 정산 산출의 `201` 및 전체 `WholesaleSettlement[]` 응답을 확정하고 도매 정산 목록·산출 화면을 추가했다. API-013은 해결 처리했다. (`COMMERCE_ApiGuideSync_002`)
 - 도매 반품·취소 클레임 목록과 상태 필터, `접수 → 승인 → 완료` 또는 `접수 → 거절` 처리를 `/admin/supplier/claims`에 구현했다. 소유 매장 범위와 `409 O005` 오류는 서버 계약을 따른다. (`COMMERCE_ApiGuideSync_003`)
@@ -13,12 +15,22 @@
 - 셀러 관리자 장바구니를 관리자 공통 헤더·요약·패널 구조로 재구성하고, 상품 탐색을 상품 관리와 같은 요약·검색·테이블·페이지네이션 구조로 통일했다. (`COMMERCE_SellerAdminUX_001`)
 - 셀러 관리자 장바구니를 상품 관리와 같은 전체 폭 목록 레이아웃으로 확장하고, 선택 금액·배송 정보·주문 버튼을 상품 목록 상단의 주문 패널로 배치했다. 주문 생성과 장바구니 기능은 기존 로직을 유지한다. (`COMMERCE_SellerAdminUX_002`)
 - 셀러 관리자 장바구니는 전체 폭 관리자 화면 안에서 상품 목록을 왼쪽 가변 영역, 주문 정보를 오른쪽 340px 고정 영역으로 배치한다. 900px 이하에서는 한 열로 전환하며 기존 주문 기능은 유지한다. (`COMMERCE_SellerAdminUX_003`)
+- 셀러 관리자 장바구니는 상품 탐색과 같은 테이블에서 상품당 한 행으로 표시하고, 주문 관리는 주문당 한 행의 가로형 테이블로 표시한다. 수량 변경·삭제·주문·상세 이동 기능은 유지한다. (`COMMERCE_SellerAdminUX_004`)
+- 2026-09-14 도매 상품 등록·수정의 도매상 SEQ 직접 입력을 본인 소유 도매 매장 선택으로 전환했다. `/wholesale/stores`의 `seq`를 `wholesaleStoreSeq`로 전송하며 사업자 프로필 SEQ와 구분한다. 조회 실패·빈 목록·목록에 없는 기존 매장은 저장을 차단한다. API 계약은 2026-09-07 보안·소유권 기준과 기존 매장 선택 계약을 따른다. (`COMMERCE_SellerAdminUX_005`)
 - 찜 등록은 백엔드 계약의 필수 `retailStoreSeq`를 장바구니에서 간접 조회하지 않고 `/seller/business`의 연결 매장에서 선택해 전송한다. 연결 매장이 없으면 사업자·매장 화면으로 안내하며, 찜 목록은 상품 탐색과 같은 요약·검색·테이블 구조를 사용한다. (`COMMERCE_SellerWishlist_001`)
 - 2026-09-09 백엔드 원본 가이드에 추가된 도매 소유 매장·셀러 연결 매장의 `businessProfileSeq`, `businessProfileName`, `userSeq`, `userId`, `userName`을 타입과 화면에 반영했다. (`COMMERCE_BusinessTerminology_001`)
 - 서비스 관리자 도매·소매 매장 목록에 사용자 ID·사용자명·사업자 ID를 추가하고 사업자 ID를 사업자명 바로 앞에 배치했다. `companyName`은 사업자명, `storeName`은 사업장명으로 구분하며, 관리자 매장 API의 사용자 필드 누락은 API-015로 백엔드 확정을 요청했다. (`COMMERCE_BusinessTerminology_002`)
 - 2026-09-10 백엔드 상품 계약의 상품 총 가용 재고, SKU별 가용·예약 재고, 찜 상품 총 가용 재고 필드를 타입과 상품 관리·탐색·상세·찜 화면에 반영했다. 상품 선택 수량은 SKU 가용 재고를 넘지 못한다. (`COMMERCE_ApiGuideSync_008`)
+- 2026-09-10 백엔드 상품 계약에 추가된 SKU별 누적 출고 수량 `shippedQuantity`를 상품 타입과 도매 상품 상세의 SKU 표에 반영했다. (`COMMERCE_ApiGuideSync_009`)
+- 도매 재고 관리 요약·SKU 목록에 출고 누계를 추가했다. 재고 API 응답의 `shippedQuantity` 누락은 API-016으로 기록하고 값이 없을 때는 `-`로 표시한다. (`COMMERCE_ApiGuideSync_010`)
+- 도매 출고 관리 품목 표에 SKU·색상·사이즈를 추가했다. 출고 응답의 옵션 필드 누락은 API-017로 기록하고 값이 없을 때는 `-`로 표시한다. (`COMMERCE_WholesaleShipment_001`)
+- 출고 완료 시 백엔드는 예약 재고를 차감하고 출고 누계를 증가시키며 재고 API가 필수 `shippedQuantity`를 반환한다. 프론트 계약을 최신 가이드와 동기화하고 재고 관리에 숫자로 표시하도록 확정했다. (`COMMERCE_ShippedInventorySync_001`)
+- 백엔드 대상 테스트 실행 결과 `WholesaleFulfillmentServiceOwnershipTest`가 새 `InventoryRepository`·`ProductVariantRepository` 생성자 의존성을 반영하지 않아 테스트 컴파일에 실패했다. 실행 서버를 새 코드로 빌드·재시작하기 전에 백엔드 테스트 보완이 필요하다. (`COMMERCE_ShippedInventorySync_001`)
 - 셀러 서비스 공통 헤더에 현재 로그인 사용자의 이름·로그인 ID·셀러 역할을 표시하고 셀러 관리자 대시보드로 연결했다. (`COMMERCE_SellerHeader_001`)
 - 셀러 서비스 헤더의 장바구니를 로그인/로그아웃 영역 뒤로 이동해 데스크톱 우측 끝에 배치했다. (`COMMERCE_SellerHeader_002`)
+- 셀러 서비스 헤더 메뉴를 주문 내역, 관리자 센터, 로그인 정보, 로그아웃, 장바구니 순서로 정렬했다. (`COMMERCE_SellerHeader_003`)
+- 셀러 서비스 헤더 메뉴를 주문 내역, 관리자 센터, 장바구니, 로그인 정보, 로그아웃 순서로 재정렬했다. (`COMMERCE_SellerHeader_004`)
+- 서비스 화면 상단 주요 메뉴는 도매 상품, 신상품, 거래 혜택만 유지하고 중복된 관리자 항목을 제거했다. 우측 관리자 센터는 유지한다. (`COMMERCE_SellerHeader_005`)
 - 2026-08-24 재검증에서 관리자 사용자 목록 설명의 기존 배열 표현을 공통 `PageResponse<AdminUser>` 계약으로 바로잡았으며, 현재 서비스·스토어의 페이지 응답 처리와 일치함을 확인했다.
 - 2026-08-24 도매 주문 확정 계약에 맞춰 주문 품목 옵션을 `sku`, `color`, `size` 고정 필드로 전환하고, 소매 매장명 `retailStoreName`과 구매처 사업자명 `buyerCompanyName`을 화면에 표시한다. 레거시 DB 상태 `CREATED`는 서버가 `PRODUCT_ORDERED`로 정규화하므로 프론트 호환 분기를 제거했으며, 품목 상태 변경 성공 시 응답의 전체 `WholesaleOrder`로 대상 주문을 교체한다.
 - 2026-08-24 목록 API 계약 변경에 따라 셀러·서비스 관리자 주문, 도매 주문·출고, 관리자 사용자·사업자·매장·택배사, 도매 재고·입고 목록을 공통 `PageResponse<T>`로 전환했다. 각 스토어는 `content`와 페이지 메타데이터를 분리해 보관하고 화면은 이전·다음 페이지와 전체 건수를 표시한다. 검색·필터를 새로 적용하면 0페이지부터 조회하며 카테고리·장바구니·소유 매장·활성 택배사 select 배열 계약은 유지한다.
@@ -26,6 +38,8 @@
 - 해당 계약이 확정되면 `docs/frontend-api-guide.md`와 구현을 갱신하고 `docs/api-guide.md` 항목을 `해결`로 변경한다.
 
 ## 1. 서비스 정의
+
+- 2026-09-14 `COMMERCE_SellerAdminUX_006`: 도매 사업자·매장 관리의 매장 등록·수정을 ADMIN 폼 스타일의 네이티브 레이어 팝업으로 전환했다. 등록은 본인 사업자를 선택하고 수정은 사업자 연결을 고정한다. 백엔드 `POST /api/v1/wholesale/management/stores`를 추가했으며 소유권 INSERT 조건·필수 필드 검증·`201/404 BP002` 계약을 프론트 가이드와 동기화했다. 저장 실패 시 입력 유지, 중복 제출·저장 중 닫기 차단, 성공 후 목록 재조회와 매장 SEQ 표시를 적용했다. DB 스키마·운영 배포 변경은 없다.
 
 - 도매 공급자와 셀러(소매 사업자)가 거래하는 B2B 커머스 서비스다.
 - 도매 공급자는 상품을 등록하고 관리할 수 있어야 한다.
@@ -589,3 +603,21 @@
 - 상품 관리·탐색·상세·찜 목록에 가용 재고를 표시하고 상품 상세 SKU 선택 수량을 가용 재고 이내로 제한 (`COMMERCE_ApiGuideSync_008`)
 - 셀러 서비스 화면 상단에 로그인 사용자 이름·ID·역할을 노출하고 클릭 시 셀러 관리자 대시보드로 이동하도록 적용 (`COMMERCE_SellerHeader_001`)
 - 셀러 서비스 헤더 장바구니를 로그인 영역 오른쪽으로 이동하고 기존 수량 배지·링크 기능 유지 (`COMMERCE_SellerHeader_002`)
+- 셀러 서비스 헤더 액션 순서를 주문 내역 → 관리자 센터 → 로그인 정보 → 로그아웃 → 장바구니로 조정 (`COMMERCE_SellerHeader_003`)
+- 셀러 서비스 헤더 액션 순서를 주문 내역 → 관리자 센터 → 장바구니 → 로그인 정보 → 로그아웃으로 조정 (`COMMERCE_SellerHeader_004`)
+- 서비스 화면 상단 주요 메뉴를 도매 상품 → 신상품 → 거래 혜택으로 정리하고 관리자 항목 제거 (`COMMERCE_SellerHeader_005`)
+- 백엔드 가이드의 `ProductVariant.shippedQuantity`를 동기화하고 도매 상품 상세 SKU 표에 출고 수량을 표시 (`COMMERCE_ApiGuideSync_009`)
+- 도매 재고 관리에 SKU별 출고 누계와 현재 페이지 합계를 추가하고 재고 API의 응답 필드 요청을 API-016에 기록 (`COMMERCE_ApiGuideSync_010`)
+- 도매 출고 관리 품목 목록에 SKU·색상·사이즈 옵션을 추가하고 출고 응답 계약 보완 요청을 API-017에 기록 (`COMMERCE_WholesaleShipment_001`)
+- 출고 완료의 재고 이동과 재고 응답 `shippedQuantity` 계약을 확인하고 API-016·017을 해결 처리한 뒤 프론트 필드를 필수값으로 동기화 (`COMMERCE_ShippedInventorySync_001`)
+- 백엔드 출고 완료 구현은 `reservedQuantity` 차감·`shippedQuantity` 증가를 수행하지만 신규 Repository 의존성을 누락한 기존 테스트가 컴파일되지 않아 백엔드 빌드·실행 반영은 미완료 (`COMMERCE_ShippedInventorySync_001`)
+
+### 2026-09-15
+
+- 백엔드 원본 `COMMERCE_SellerMenuMove_002_frontend.html`과 `frontend-api-guide.md`를 기준으로 셀러 사업자·매장 관리 화면을 도매 목록 UI 패턴으로 개편하고, 본인 사업자 선택 기반 소매 매장 등록·수정 레이어 팝업 및 API 연동을 구현 (`COMMERCE_SellerMenuMove_002`)
+- 셀러 매장 등록은 `businessProfileSeq`를 포함하고 수정은 사업자 연결을 제외하며, 저장 성공 후 GET 재조회만 수행하도록 계약을 프론트 API 가이드와 `docs/api-guide.md` API-018에 기록 (`COMMERCE_SellerMenuMove_002`)
+
+### 2026-09-18
+
+- 도매 관리자 개선 범위를 주문·출고 일괄 처리, 재고 추적, 대시보드, 정산, 상품, 클레임·거래처, 권한·감사 단계로 분리하고 프론트 개발 순서·화면 상태·완료 조건·검증·롤백을 단일 HTML 명세로 작성 (`COMMERCE_WholesaleAdminEnhancement_001`)
+- 현재 API로 즉시 가능한 P0 개선과 백엔드 계약이 필요한 P1~P4를 분리했으며, 신규 주문·출고 bulk, 재고 원장, 대시보드 통계, 정산 상세, 상품 업로드, 클레임·거래처 계약을 `docs/api-guide.md` API-019에 요청 상태로 기록 (`COMMERCE_WholesaleAdminEnhancement_001`)

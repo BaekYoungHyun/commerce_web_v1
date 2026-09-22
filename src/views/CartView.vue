@@ -35,6 +35,9 @@ const {
 const formatPrice = (value: number) => new Intl.NumberFormat('ko-KR').format(value)
 const optionName = (item: CartItem) =>
   [item.color, item.size].filter(Boolean).join(' / ') || item.sku
+const wholesaleStoreNameOf = (item: CartItem) =>
+  wholesaleGroups.value.find((group) => group.wholesaleStoreSeq === item.wholesaleStoreSeq)
+    ?.wholesaleStoreName ?? `도매 매장 #${item.wholesaleStoreSeq}`
 const isSelected = (item: CartItem) =>
   cartStore.checkedItems.some((current) => current.seq === item.seq)
 const requiresBusinessRegistration = () => String(errorCode.value) === 'CART004'
@@ -206,7 +209,95 @@ onMounted(() => {
             </button>
           </div>
 
+          <div v-if="isSellerAdmin" class="admin-table-scroll">
+            <table class="admin-product-table admin-business-table seller-cart-table">
+              <thead>
+                <tr>
+                  <th>선택</th>
+                  <th>대표 이미지</th>
+                  <th>도매처</th>
+                  <th>상품명</th>
+                  <th>옵션</th>
+                  <th>판매가</th>
+                  <th>수량</th>
+                  <th>상품 금액</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in items" :key="item.seq">
+                  <td>
+                    <input
+                      type="checkbox"
+                      :checked="isSelected(item)"
+                      :aria-label="`${item.productName} 선택`"
+                      @change="cartStore.toggleItem(item)"
+                    />
+                  </td>
+                  <td>
+                    <RouterLink class="seller-cart-product-image" :to="productPath(item.productSeq)"
+                      ><img
+                        v-if="item.imageUrl"
+                        :src="item.imageUrl"
+                        :alt="item.productName"
+                      /><span v-else class="admin-product-image-fallback"
+                        >NO IMAGE</span
+                      ></RouterLink
+                    >
+                  </td>
+                  <td>
+                    <strong>{{ wholesaleStoreNameOf(item) }}</strong
+                    ><small>SEQ {{ item.wholesaleStoreSeq }}</small>
+                  </td>
+                  <td>
+                    <RouterLink class="admin-product-name" :to="productPath(item.productSeq)">{{
+                      item.productName
+                    }}</RouterLink
+                    ><small>상품 SEQ {{ item.productSeq }}</small>
+                  </td>
+                  <td>
+                    <strong>{{ optionName(item) }}</strong
+                    ><small>SKU {{ item.sku }}</small>
+                  </td>
+                  <td>{{ formatPrice(item.salePrice) }}원</td>
+                  <td>
+                    <div class="cart-quantity seller-cart-quantity">
+                      <button
+                        type="button"
+                        :disabled="item.quantity <= 1 || pendingItemSeqs.has(item.seq)"
+                        @click="cartStore.updateQuantity(item, item.quantity - 1)"
+                      >
+                        −</button
+                      ><strong>{{ item.quantity }}</strong
+                      ><button
+                        type="button"
+                        :disabled="pendingItemSeqs.has(item.seq)"
+                        @click="cartStore.updateQuantity(item, item.quantity + 1)"
+                      >
+                        ＋
+                      </button>
+                    </div>
+                  </td>
+                  <td>
+                    <strong>{{ formatPrice(item.lineAmount) }}원</strong>
+                  </td>
+                  <td>
+                    <button
+                      class="admin-table-action seller-cart-remove"
+                      type="button"
+                      :disabled="loading"
+                      @click="cartStore.removeItems([item.seq])"
+                    >
+                      삭제
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
           <article
+            v-else
             v-for="group in wholesaleGroups"
             :key="group.wholesaleStoreSeq"
             class="supplier-cart-group"

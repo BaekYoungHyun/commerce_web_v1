@@ -83,3 +83,19 @@ export interface SellerBusinessResponse {
     }>
   }>
 }
+
+export type SellerEditableStoreStatus = 'ACTIVE' | 'INACTIVE'
+export interface SellerStoreCreateRequest {
+  businessProfileSeq: number
+  storeName: string
+  salesChannel?: string | null
+  status: SellerEditableStoreStatus
+}
+export type SellerStoreUpdateRequest = Omit<SellerStoreCreateRequest, 'businessProfileSeq'>
+export interface SellerStoreMutationResponse {
+  seq: number
+  businessProfileSeq: number
+  storeName: string
+  salesChannel: string | null
+  status: SellerEditableStoreStatus
+}
