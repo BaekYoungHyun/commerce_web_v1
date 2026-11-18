@@ -24,6 +24,7 @@
 - 2026-09-10 백엔드 상품 계약에 추가된 SKU별 누적 출고 수량 `shippedQuantity`를 상품 타입과 도매 상품 상세의 SKU 표에 반영했다. (`COMMERCE_ApiGuideSync_009`)
 - 도매 재고 관리 요약·SKU 목록에 출고 누계를 추가했다. 재고 API 응답의 `shippedQuantity` 누락은 API-016으로 기록하고 값이 없을 때는 `-`로 표시한다. (`COMMERCE_ApiGuideSync_010`)
 - 도매 출고 관리 품목 표에 SKU·색상·사이즈를 추가했다. 출고 응답의 옵션 필드 누락은 API-017로 기록하고 값이 없을 때는 `-`로 표시한다. (`COMMERCE_WholesaleShipment_001`)
+- 도매 출고 관리 목록을 출고 1건당 한 행인 가로형 테이블로 변경했다. 택배사·송장·출고 완료와 다건 선택 기능은 행 안에 유지하고, SKU·옵션·출고 수량 수정은 품목 관리 팝업으로 분리했다. (`COMMERCE_WholesaleShipment_002`)
 - 출고 완료 시 백엔드는 예약 재고를 차감하고 출고 누계를 증가시키며 재고 API가 필수 `shippedQuantity`를 반환한다. 프론트 계약을 최신 가이드와 동기화하고 재고 관리에 숫자로 표시하도록 확정했다. (`COMMERCE_ShippedInventorySync_001`)
 - 백엔드 대상 테스트 실행 결과 `WholesaleFulfillmentServiceOwnershipTest`가 새 `InventoryRepository`·`ProductVariantRepository` 생성자 의존성을 반영하지 않아 테스트 컴파일에 실패했다. 실행 서버를 새 코드로 빌드·재시작하기 전에 백엔드 테스트 보완이 필요하다. (`COMMERCE_ShippedInventorySync_001`)
 - 셀러 서비스 공통 헤더에 현재 로그인 사용자의 이름·로그인 ID·셀러 역할을 표시하고 셀러 관리자 대시보드로 연결했다. (`COMMERCE_SellerHeader_001`)
