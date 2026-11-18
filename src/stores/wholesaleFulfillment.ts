@@ -5,9 +5,11 @@ import { ApiError } from '../services/httpClient'
 import { useAuthStore } from './auth'
 import type {
   DeliveryCompanyOption,
+  OrderItemBulkStatusUpdateRequest,
   FulfillmentFilters,
   OrderItemFulfillmentStatus,
   ShipmentStatus,
+  ShipmentBulkStatusUpdateRequest,
   WholesaleOrder,
   Shipment,
   WholesaleOwnedStore,
@@ -99,6 +101,23 @@ export const useWholesaleFulfillmentStore = defineStore('wholesaleFulfillment', 
     }
     orders.value = orders.value.map((order) => (order.orderSeq === orderSeq ? visibleOrder : order))
   }
+  async function updateOrderItemStatuses(body: OrderItemBulkStatusUpdateRequest) {
+    const response = await run('order-items-bulk', () =>
+      authorized((token) => wholesaleFulfillmentApi.updateOrderItemStatuses(token, body)),
+    )
+    const ownedStoreSeqs = new Set(stores.value.map((store) => store.seq))
+    const succeeded = new Map(
+      response.succeeded.map((order) => [
+        order.orderSeq,
+        {
+          ...order,
+          items: order.items.filter((item) => ownedStoreSeqs.has(item.wholesaleStoreSeq)),
+        },
+      ]),
+    )
+    orders.value = orders.value.map((order) => succeeded.get(order.orderSeq) ?? order)
+    return response
+  }
   async function createShipment(orderSeq: number, wholesaleStoreSeq: number) {
     return run(`shipment-${orderSeq}-${wholesaleStoreSeq}`, () =>
       authorized((token) =>
@@ -157,6 +176,18 @@ export const useWholesaleFulfillmentStore = defineStore('wholesaleFulfillment', 
       current.shipmentSeq === shipment.shipmentSeq ? shipment : current,
     )
   }
+  async function updateShipmentStatuses(body: ShipmentBulkStatusUpdateRequest) {
+    const response = await run('shipments-bulk', () =>
+      authorized((token) => wholesaleFulfillmentApi.updateShipmentStatuses(token, body)),
+    )
+    const succeeded = new Map(
+      response.succeeded.map((shipment) => [shipment.shipmentSeq, shipment]),
+    )
+    shipments.value = shipments.value.map(
+      (shipment) => succeeded.get(shipment.shipmentSeq) ?? shipment,
+    )
+    return response
+  }
   async function updateShipmentQuantity(
     shipmentSeq: number,
     shipmentItemSeq: number,
@@ -190,10 +221,12 @@ export const useWholesaleFulfillmentStore = defineStore('wholesaleFulfillment', 
     fetchStores,
     fetchOrders,
     updateOrderItemStatus,
+    updateOrderItemStatuses,
     createShipment,
     fetchShipments,
     fetchDeliveryCompanies,
     updateShipmentStatus,
+    updateShipmentStatuses,
     updateShipmentQuantity,
   }
 })

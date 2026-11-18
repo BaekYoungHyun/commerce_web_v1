@@ -1,10 +1,13 @@
 import { apiRequest } from './httpClient'
 import type {
   DeliveryCompanyOption,
+  BulkOperationResponse,
   FulfillmentFilters,
+  OrderItemBulkStatusUpdateRequest,
   OrderItemFulfillmentStatus,
   Shipment,
   ShipmentStatus,
+  ShipmentBulkStatusUpdateRequest,
   WholesaleOrder,
   WholesaleOwnedStore,
 } from '../types/wholesaleFulfillment'
@@ -17,6 +20,9 @@ const query = (filters: FulfillmentFilters) => {
   if (filters.size !== undefined) params.set('size', String(filters.size))
   if (filters.wholesaleStoreSeq) params.set('wholesaleStoreSeq', String(filters.wholesaleStoreSeq))
   if (filters.status) params.set('status', filters.status)
+  if (filters.keyword?.trim()) params.set('keyword', filters.keyword.trim())
+  if (filters.orderedFrom) params.set('orderedFrom', filters.orderedFrom)
+  if (filters.orderedTo) params.set('orderedTo', filters.orderedTo)
   return params.size ? `?${params.toString()}` : ''
 }
 
@@ -26,6 +32,11 @@ export const wholesaleFulfillmentApi = {
   },
   orders(token: string, filters: FulfillmentFilters = {}) {
     return apiRequest<PageResponse<WholesaleOrder>>(`/wholesale/orders${query(filters)}`, {
+      headers: headers(token),
+    })
+  },
+  order(token: string, orderSeq: number) {
+    return apiRequest<WholesaleOrder>(`/wholesale/orders/${orderSeq}`, {
       headers: headers(token),
     })
   },
@@ -43,6 +54,13 @@ export const wholesaleFulfillmentApi = {
         body: JSON.stringify({ status }),
       },
     )
+  },
+  updateOrderItemStatuses(token: string, body: OrderItemBulkStatusUpdateRequest) {
+    return apiRequest<BulkOperationResponse<WholesaleOrder>>('/wholesale/orders/items/status', {
+      method: 'PATCH',
+      headers: headers(token),
+      body: JSON.stringify(body),
+    })
   },
   createShipment(
     token: string,
@@ -79,6 +97,13 @@ export const wholesaleFulfillmentApi = {
     },
   ) {
     return apiRequest<Shipment>(`/wholesale/shipments/${shipmentSeq}/status`, {
+      method: 'PATCH',
+      headers: headers(token),
+      body: JSON.stringify(body),
+    })
+  },
+  updateShipmentStatuses(token: string, body: ShipmentBulkStatusUpdateRequest) {
+    return apiRequest<BulkOperationResponse<Shipment>>('/wholesale/shipments/status', {
       method: 'PATCH',
       headers: headers(token),
       body: JSON.stringify(body),

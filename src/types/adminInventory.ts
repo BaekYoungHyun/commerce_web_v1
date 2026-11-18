@@ -12,6 +12,7 @@ export interface AdminInventory {
   wholesaleStoreName: string | null
   availableQuantity: number
   reservedQuantity: number
+  shippedQuantity: number
   totalQuantity: number
   updatedAt: string
 }

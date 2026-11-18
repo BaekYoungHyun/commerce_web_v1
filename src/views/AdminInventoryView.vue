@@ -37,6 +37,9 @@ const availableTotal = computed(() =>
 const reservedTotal = computed(() =>
   filtered.value.reduce((sum, item) => sum + item.reservedQuantity, 0),
 )
+const shippedTotal = computed(() =>
+  filtered.value.reduce((sum, item) => sum + item.shippedQuantity, 0),
+)
 async function load(
   requestedPage: unknown = pagination.value.page,
   requestedSize = pagination.value.size,
@@ -58,7 +61,7 @@ onMounted(load)
       <div>
         <p>WHOLESALE INVENTORY</p>
         <h1>상품 재고 관리</h1>
-        <span>SKU별 주문 가능 수량과 출고 전 예약 수량을 관리합니다.</span>
+        <span>SKU별 주문 가능·예약 재고와 누적 출고 수량을 확인하고 관리합니다.</span>
       </div>
       <div class="admin-heading-actions">
         <RouterLink class="admin-secondary-button" to="/admin/supplier/inventory/bulk">
@@ -69,7 +72,7 @@ onMounted(load)
         </RouterLink>
       </div>
     </div>
-    <section class="admin-summary">
+    <section class="admin-summary inventory-summary">
       <div>
         <span>재고 행</span><strong>{{ filtered.length }}</strong
         ><small>개</small>
@@ -83,7 +86,11 @@ onMounted(load)
         ><small>개</small>
       </div>
       <div>
-        <span>전체 수량</span><strong>{{ availableTotal + reservedTotal }}</strong
+        <span>출고 누계</span><strong>{{ shippedTotal }}</strong
+        ><small>개</small>
+      </div>
+      <div>
+        <span>현재 재고</span><strong>{{ availableTotal + reservedTotal }}</strong
         ><small>개</small>
       </div>
     </section>
@@ -116,6 +123,7 @@ onMounted(load)
               <th>도매 매장</th>
               <th>주문 가능</th>
               <th>예약</th>
+              <th>출고 누계</th>
               <th>전체</th>
               <th>수정일</th>
               <th>관리</th>
@@ -123,7 +131,7 @@ onMounted(load)
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="11" class="admin-empty">재고 목록을 불러오는 중입니다.</td>
+              <td colspan="12" class="admin-empty">재고 목록을 불러오는 중입니다.</td>
             </tr>
             <tr v-for="item in filtered" v-else :key="item.seq">
               <td>{{ item.seq }}</td>
@@ -139,6 +147,7 @@ onMounted(load)
               <td>{{ item.wholesaleStoreName ?? '-' }}</td>
               <td>{{ item.availableQuantity.toLocaleString() }}</td>
               <td>{{ item.reservedQuantity.toLocaleString() }}</td>
+              <td>{{ item.shippedQuantity.toLocaleString() }}</td>
               <td>
                 <strong>{{ item.totalQuantity.toLocaleString() }}</strong>
               </td>
@@ -150,7 +159,7 @@ onMounted(load)
               </td>
             </tr>
             <tr v-if="!loading && filtered.length === 0">
-              <td colspan="11" class="admin-empty">조회된 재고가 없습니다.</td>
+              <td colspan="12" class="admin-empty">조회된 재고가 없습니다.</td>
             </tr>
           </tbody>
         </table>

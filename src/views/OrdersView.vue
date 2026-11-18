@@ -137,87 +137,73 @@ onMounted(load)
         </div>
       </div>
       <div v-if="loading" class="seller-order-list-state">주문을 불러오는 중입니다.</div>
-      <div v-else-if="filtered.length" class="seller-order-card-list">
-        <article v-for="order in filtered" :key="order.seq" class="seller-order-card">
-          <header class="seller-order-card-header">
-            <div class="seller-order-identity">
-              <span>주문번호</span>
-              <strong>{{ order.orderNo }}</strong>
-              <small>{{ formatDateTime(order.createdAt) }}</small>
-            </div>
-            <div class="seller-order-header-summary">
-              <i class="admin-status">{{ order.status }}</i>
-              <div>
-                <span>총 주문 금액</span>
+      <div v-else-if="filtered.length" class="admin-table-scroll">
+        <table class="admin-product-table admin-business-table seller-order-table">
+          <thead>
+            <tr>
+              <th>주문번호</th>
+              <th>주문 매장</th>
+              <th>주문 상품</th>
+              <th>도매처</th>
+              <th>수량</th>
+              <th>주문 금액</th>
+              <th>주문 상태</th>
+              <th>배송 현황</th>
+              <th>주문일</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="order in filtered" :key="order.seq">
+              <td>
+                <strong>{{ order.orderNo }}</strong
+                ><small>수령인 {{ order.recipientName }}</small>
+              </td>
+              <td>
+                <strong>{{ order.retailStoreName ?? `#${order.retailStoreSeq}` }}</strong
+                ><small>{{ order.buyerName ?? order.buyerUserId ?? '-' }}</small>
+              </td>
+              <td>
+                <div class="seller-order-inline-products">
+                  <div v-for="item in order.items" :key="item.seq">
+                    <strong>{{ item.productName }}</strong
+                    ><small>{{ optionLabel(item) }} · {{ money(item.unitPrice) }}원</small
+                    ><i class="admin-status">{{ itemStatusLabel(item.status) }}</i>
+                  </div>
+                </div>
+              </td>
+              <td>{{ wholesaleNames(order) }}</td>
+              <td>{{ order.items.reduce((sum, item) => sum + item.quantity, 0) }}개</td>
+              <td>
                 <strong>{{ money(order.totalAmount) }}원</strong>
-              </div>
-              <RouterLink :to="`/admin/seller/orders/${order.seq}`">주문 상세</RouterLink>
-            </div>
-          </header>
-          <div class="seller-order-context">
-            <span><b>주문 매장</b>{{ order.retailStoreName ?? `#${order.retailStoreSeq}` }}</span>
-            <span><b>주문자</b>{{ order.buyerName ?? order.buyerUserId ?? '-' }}</span>
-            <span><b>수령인</b>{{ order.recipientName }}</span>
-            <span><b>상품 수</b>{{ order.items.length }}종</span>
-          </div>
-          <div class="seller-order-card-body">
-            <section class="seller-order-products">
-              <div class="seller-order-section-title">
-                <h3>주문 상품</h3>
-                <span>상품별 거래 조건과 처리 상태</span>
-              </div>
-              <ul>
-                <li v-for="(item, index) in order.items" :key="item.seq">
-                  <span class="seller-order-product-index">{{ index + 1 }}</span>
-                  <div class="seller-order-product-main">
-                    <strong>{{ item.productName }}</strong>
-                    <span>{{
-                      item.wholesaleStoreName ?? `도매 매장 #${item.wholesaleStoreSeq}`
-                    }}</span>
-                    <small>{{ optionLabel(item) }}</small>
-                  </div>
-                  <dl>
-                    <div>
-                      <dt>단가</dt>
-                      <dd>{{ money(item.unitPrice) }}원</dd>
-                    </div>
-                    <div>
-                      <dt>수량</dt>
-                      <dd>{{ item.quantity }}개</dd>
-                    </div>
-                    <div>
-                      <dt>상품 금액</dt>
-                      <dd>{{ money(item.lineAmount) }}원</dd>
-                    </div>
-                  </dl>
-                  <i class="admin-status">{{ itemStatusLabel(item.status) }}</i>
-                </li>
-              </ul>
-            </section>
-            <aside class="seller-order-delivery">
-              <div class="seller-order-section-title">
-                <h3>배송 현황</h3>
-                <span>{{ order.shipments?.length ?? 0 }}건</span>
-              </div>
-              <ul v-if="order.shipments?.length" class="seller-shipment-summary">
-                <li v-for="shipment in order.shipments" :key="shipment.shipmentSeq">
-                  <div>
-                    <strong>{{ shipment.wholesaleStoreName ?? '도매 매장' }}</strong>
-                    <i class="admin-status">{{ shipmentStatusLabel(shipment.status) }}</i>
-                  </div>
-                  <span v-if="shipment.deliveryCompanyName || shipment.trackingNumber"
-                    >{{ shipment.deliveryCompanyName ?? shipment.deliveryCompanyCode
-                    }}<template v-if="shipment.trackingNumber">
-                      · {{ shipment.trackingNumber }}</template
+              </td>
+              <td>
+                <i class="admin-status">{{ order.status }}</i>
+              </td>
+              <td>
+                <div v-if="order.shipments?.length" class="seller-order-inline-shipments">
+                  <span v-for="shipment in order.shipments" :key="shipment.shipmentSeq"
+                    >{{ shipment.wholesaleStoreName ?? '도매 매장' }} ·
+                    {{ shipmentStatusLabel(shipment.status)
+                    }}<small v-if="shipment.deliveryCompanyName || shipment.trackingNumber"
+                      >{{ shipment.deliveryCompanyName ?? shipment.deliveryCompanyCode
+                      }}<template v-if="shipment.trackingNumber">
+                        · {{ shipment.trackingNumber }}</template
+                      ></small
                     ></span
                   >
-                  <span v-else>택배사·송장번호 미등록</span>
-                </li>
-              </ul>
-              <span v-else class="seller-shipment-empty">도매업체 출고 준비 전</span>
-            </aside>
-          </div>
-        </article>
+                </div>
+                <span v-else class="seller-order-shipment-empty">출고 준비 전</span>
+              </td>
+              <td>{{ formatDateTime(order.createdAt) }}</td>
+              <td>
+                <RouterLink class="admin-table-action" :to="`/admin/seller/orders/${order.seq}`"
+                  >상세</RouterLink
+                >
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       <div v-else class="seller-order-list-state">주문 내역이 없습니다.</div>
       <PageControls

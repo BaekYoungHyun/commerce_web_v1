@@ -11,6 +11,8 @@ import type {
   SellerDashboard,
   SellerPayment,
   SellerWishlist,
+  SellerStoreCreateRequest,
+  SellerStoreUpdateRequest,
   WishlistRequest,
 } from '../types/sellerAdmin'
 import type { ClaimCreateRequest } from '../types/order'
@@ -25,6 +27,7 @@ export const useSellerAdminStore = defineStore('sellerAdmin', () => {
   const loading = ref(false)
   const saving = ref(false)
   const error = ref('')
+  let businessRequestId = 0
   async function authorized<T>(request: (token: string) => Promise<T>) {
     try {
       return await request(await auth.getValidAccessToken())
@@ -65,11 +68,38 @@ export const useSellerAdminStore = defineStore('sellerAdmin', () => {
       async () => (wishlists.value = await authorized(sellerAdminApi.wishlists)),
       '찜 상품을 불러오지 못했습니다.',
     )
-  const fetchBusiness = () =>
-    run(
-      async () => (business.value = await authorized(sellerAdminApi.business)),
-      '사업자 정보를 불러오지 못했습니다.',
-    )
+  async function fetchBusiness() {
+    const requestId = ++businessRequestId
+    loading.value = true
+    error.value = ''
+    try {
+      const response = await authorized(sellerAdminApi.business)
+      if (requestId === businessRequestId) business.value = response
+      return response
+    } catch (cause) {
+      if (requestId === businessRequestId)
+        error.value = cause instanceof Error ? cause.message : '사업자 정보를 불러오지 못했습니다.'
+      throw cause
+    } finally {
+      if (requestId === businessRequestId) loading.value = false
+    }
+  }
+  async function saveStore(
+    body: SellerStoreCreateRequest | SellerStoreUpdateRequest,
+    seq?: number,
+  ) {
+    if (saving.value) throw new Error('매장 저장 요청을 처리 중입니다.')
+    saving.value = true
+    try {
+      return await authorized((token) =>
+        seq === undefined
+          ? sellerAdminApi.createStore(token, body as SellerStoreCreateRequest)
+          : sellerAdminApi.updateStore(token, seq, body as SellerStoreUpdateRequest),
+      )
+    } finally {
+      saving.value = false
+    }
+  }
   async function addWishlist(body: WishlistRequest) {
     const created = await authorized((token) => sellerAdminApi.addWishlist(token, body))
     wishlists.value.unshift(created)
@@ -140,6 +170,7 @@ export const useSellerAdminStore = defineStore('sellerAdmin', () => {
     fetchPayments,
     fetchWishlists,
     fetchBusiness,
+    saveStore,
     addWishlist,
     removeWishlist,
     saveAddress,

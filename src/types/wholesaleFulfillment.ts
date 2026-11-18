@@ -4,6 +4,32 @@ export type ShipmentStatus = 'SHIPMENT_PREPARING' | 'SHIPPED'
 export interface DeliveryCompanyOption {
   code: string
   name: string
+  trackingUrlTemplate: string | null
+}
+
+export interface BulkOperationFailure {
+  seq: number
+  code: string
+  message: string
+}
+
+export interface BulkOperationResponse<T> {
+  succeeded: T[]
+  failed: BulkOperationFailure[]
+}
+
+export interface OrderItemBulkStatusUpdateRequest {
+  items: Array<{ orderSeq: number; orderItemSeq: number }>
+  status: 'PRODUCT_PREPARING' | 'PRODUCT_READY'
+}
+
+export interface ShipmentBulkStatusUpdateRequest {
+  shipments: Array<{
+    shipmentSeq: number
+    deliveryCompanyCode: string
+    trackingNumber: string
+  }>
+  status: 'SHIPPED'
 }
 
 export interface WholesaleOwnedStore {
@@ -52,6 +78,9 @@ export interface ShipmentItem {
   productSeq: number
   variantSeq: number
   productName: string
+  sku: string | null
+  color: string | null
+  size: string | null
   orderedQuantity: number
   shipmentQuantity: number
 }
@@ -75,4 +104,7 @@ export interface FulfillmentFilters {
   size?: number
   wholesaleStoreSeq?: number
   status?: string
+  keyword?: string
+  orderedFrom?: string
+  orderedTo?: string
 }

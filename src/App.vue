@@ -47,9 +47,15 @@ async function logout() {
           <RouterLink to="/">도매 상품</RouterLink>
           <a href="/#new">신상품</a>
           <a href="/#benefits">거래 혜택</a>
-          <RouterLink :to="adminPath">관리자</RouterLink>
         </nav>
         <div class="header-actions">
+          <RouterLink v-if="authStore.isAuthenticated" class="supplier-link" to="/orders"
+            >주문 내역</RouterLink
+          >
+          <RouterLink class="supplier-link" :to="adminPath">관리자 센터</RouterLink>
+          <RouterLink class="header-cart" to="/cart" aria-label="장바구니">
+            장바구니 <span v-if="cartStore.itemCount">{{ cartStore.itemCount }}</span>
+          </RouterLink>
           <RouterLink
             v-if="authStore.isAuthenticated && authStore.isRetail"
             class="seller-login-info"
@@ -62,10 +68,6 @@ async function logout() {
               <small>{{ authStore.user?.userId || '로그인 정보 확인 중' }} · 셀러</small>
             </div>
           </RouterLink>
-          <RouterLink class="supplier-link" :to="adminPath">관리자 센터</RouterLink>
-          <RouterLink v-if="authStore.isAuthenticated" class="supplier-link" to="/orders"
-            >주문 내역</RouterLink
-          >
           <button
             v-if="authStore.isAuthenticated"
             class="login-button"
@@ -75,9 +77,6 @@ async function logout() {
             로그아웃
           </button>
           <RouterLink v-else class="login-button" to="/login">로그인</RouterLink>
-          <RouterLink class="header-cart" to="/cart" aria-label="장바구니">
-            장바구니 <span v-if="cartStore.itemCount">{{ cartStore.itemCount }}</span>
-          </RouterLink>
           <button class="menu-button" aria-label="메뉴 열기" @click="menuOpen = !menuOpen">
             ☰
           </button>

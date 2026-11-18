@@ -7,6 +7,9 @@ import type {
   SellerDashboard,
   SellerPayment,
   SellerWishlist,
+  SellerStoreCreateRequest,
+  SellerStoreMutationResponse,
+  SellerStoreUpdateRequest,
   WishlistRequest,
 } from '../types/sellerAdmin'
 import type { Claim, ClaimCreateRequest } from '../types/order'
@@ -51,6 +54,18 @@ export const sellerAdminApi = {
     apiRequest<void>(`/seller/wishlists/${seq}`, { method: 'DELETE', headers: headers(token) }),
   business: (token: string) =>
     apiRequest<SellerBusinessResponse>('/seller/business', { headers: headers(token) }),
+  createStore: (token: string, body: SellerStoreCreateRequest) =>
+    apiRequest<SellerStoreMutationResponse>('/seller/stores', {
+      method: 'POST',
+      headers: headers(token),
+      body: JSON.stringify(body),
+    }),
+  updateStore: (token: string, seq: number, body: SellerStoreUpdateRequest) =>
+    apiRequest<SellerStoreMutationResponse>(`/seller/stores/${seq}`, {
+      method: 'PUT',
+      headers: headers(token),
+      body: JSON.stringify(body),
+    }),
   createClaim: (token: string, body: ClaimCreateRequest) =>
     apiRequest<Claim>('/seller/claims', {
       method: 'POST',

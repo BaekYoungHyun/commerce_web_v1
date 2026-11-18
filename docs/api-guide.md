@@ -24,6 +24,23 @@
 
 ## 요청 항목
 
+### 도매 본인 매장 등록 API (COMMERCE_SellerAdminUX_006)
+
+- 상태: 해결 (2026-09-14 프론트·백엔드 구현)
+- 기존 도매 관리 API에 등록이 없고 ADMIN 등록 API는 도매 역할에 `403`이므로 `POST /api/v1/wholesale/management/stores`를 추가했다.
+- 본인 사업자 `businessProfileSeq`, 사업장명, 시장명, 층·호수, 상태를 전송하고 `201`과 매장 정보를 받는다. 미존재·비소유 사업자는 `404 BP002`로 거부한다.
+- 사업자 선택은 기존 본인 사업자·매장 응답을 중복 제거해 사용한다. 수정 팝업은 사업자 연결을 변경하지 않는다.
+- ADMIN UI를 참고하되 상태는 서버가 허용하는 `ACTIVE|INACTIVE`로 제한한다. ADMIN의 `SUSPENDED`를 임의 추가하지 않는다.
+- 계약·길이·오류 상세는 `docs/frontend-api-guide.md` 2026-09-14 매장 등록·수정 항목을 참조한다. 신규 API 사용에는 실행 서버의 별도 배포가 필요하다.
+
+### 도매 상품 등록·수정 매장 선택 적용 (COMMERCE_SellerAdminUX_005)
+
+- 상태: 해결 (2026-09-14 확인·프론트 적용)
+- 상품 등록·수정의 `wholesaleStoreSeq`에는 사업자·매장 관리의 도매 매장 SEQ를 전송한다. `businessProfileSeq`가 아니다.
+- `GET /api/v1/wholesale/stores`에서 본인 소유 매장을 조회하고 `storeName`과 매장 `seq`를 선택 박스에 표시한다.
+- 수정 시 기존 매장 선택을 유지한다. 조회 실패·빈 목록·선택 목록에 없는 매장은 저장을 차단한다.
+- 추가 API 필드는 필요 없으며, 기존 2026-09-07 상품 소유권 계약과 프론트 가이드 9.4의 매장 선택 계약을 사용한다.
+
 ### API-001 도매 주문 상품 옵션 구조 확정
 
 - 상태: 해결
@@ -242,6 +259,87 @@ export interface MenuItem {
 - 현재 확인 결과: 백엔드 원본 가이드의 `WholesaleOwnedStore`와 `SellerBusinessStore`에는 사용자 필드가 추가됐지만, 관리자 `WholesaleStore`·`RetailStore` 계약과 실제 `WholesaleStoreResDTO`·`RetailStoreResDTO`에는 아직 없다.
 - 프론트 처리: 두 목록에 사용자 ID·사용자명 열을 추가하고 nullable 필드로 수용한다. 백엔드 응답에 필드가 없으면 `-`로 표시한다.
 - 확정 요청: 관리자 매장 응답에도 사업자 프로필 대표 사용자의 세 필드를 추가하고 nullable 기준을 확정해 `docs/frontend-api-guide.md` 13.2에 반영해 달라.
+
+## API-016 도매 재고 목록 출고 누계
+
+- 상태: 해결 (2026-09-10)
+- 대상: `GET /api/v1/wholesale/inventory`
+- 필요 필드: 각 `WholesaleInventory` 응답의 `shippedQuantity: number`
+- 확정 결과: `WholesaleInventoryResDTO`가 `Inventory.getShippedQuantity()`를 `shippedQuantity`로 반환하며 백엔드 가이드의 `WholesaleInventory` 계약에도 필수 숫자 필드로 추가됐다.
+- 프론트 반영: 도매 재고 관리의 요약 영역과 SKU 목록에서 출고 누계를 숫자로 표시한다.
+
+## API-017 도매 출고 품목 옵션 정보
+
+- 상태: 해결 (2026-09-10)
+- 대상: `GET /api/v1/wholesale/shipments`, 출고 상태·수량 변경 성공 응답의 `Shipment.items[]`
+- 필요 필드: `sku: string | null`, `color: string | null`, `size: string | null`
+- 확정 결과: 출고 응답과 백엔드 가이드에 주문 시점 옵션 snapshot 기반 `sku`, `color`, `size`가 추가됐다.
+- 프론트 반영: 출고 관리 품목 표에 SKU와 색상·사이즈 옵션을 표시한다.
+
+## API-018 셀러 매장 등록·수정
+
+- 상태: 해결 (2026-09-15, `COMMERCE_SellerMenuMove_002`)
+- 대상: `POST /api/v1/seller/stores`, `PUT /api/v1/seller/stores/{storeSeq}`
+- 확정 필드: 등록은 `businessProfileSeq`, `storeName`, nullable `salesChannel`, `status`; 수정은 사업자 연결을 제외한 나머지 필드만 전송한다.
+- 확정 로직: GET 사업자 목록의 본인 사업자만 등록할 수 있고 수정은 본인 소유 매장만 허용한다. 매장명은 최대 150자, 판매 채널은 최대 50자, 상태는 `ACTIVE | INACTIVE`다.
+- 프론트 반영: 셀러 사업자·매장 관리에서 사업자를 선택해 레이어 팝업으로 등록하고, 기존 매장은 사업자 연결을 고정해 수정한다. 성공 후 목록 GET만 재시도할 수 있으며 저장 요청은 자동 재전송하지 않는다.
+
+## API-019 도매 관리자 운영 고도화 계약
+
+- 상태: 부분 해결 (2026-09-21, `COMMERCE_ApiGuideSync_011`)
+- 목적: 도매 주문·출고 일괄 처리, 재고 추적, 운영 대시보드, 정산 상세, 상품 파일 업로드와 클레임 증빙을 구현한다.
+- 권한: 모든 API는 `ROLE_WHOLESALE`, `ROLE_ADMIN`, `ROLE_SYSTEMADMIN`만 허용하고 도매 사용자는 본인 소유 도매 매장으로 제한한다. 타 소유 매장은 기존 `404 WS001` 계약을 유지한다.
+- 공통 목록: `PageResponse<T>`, `page=0`, `size=20`, 최대 100을 적용한다. 날짜는 서비스 기준일(`Asia/Seoul`)의 `yyyy-MM-dd` query로 전달한다.
+
+### API-019-A 주문·출고 검색 및 일괄 처리
+
+- 상태: 부분 해결. 주문 검색·기본 주문 상세·주문 품목 다건 상태 변경·출고 다건 완료·배송조회 URL 계약은 백엔드 원본 가이드에 확정되어 프론트에 반영했다.
+
+- 주문 목록 확장: `GET /api/v1/wholesale/orders`에 선택 query `keyword`, `orderedFrom`, `orderedTo`를 추가한다. `keyword`는 주문번호, 소매 매장명, 구매 사업자명, 상품명, SKU를 대상으로 한다.
+- 주문 상세: `GET /api/v1/wholesale/orders/{orderSeq}`는 현재 `WholesaleOrder`를 반환하는 기본 계약만 확정됐다. 상태 이력, 연결 출고와 클레임을 포함하는 확장 DTO는 계속 확인이 필요하다.
+- 주문 품목 일괄 변경: `PATCH /api/v1/wholesale/orders/items/status`, body `{ "items": [{ "orderSeq": number, "orderItemSeq": number }], "status": "PRODUCT_PREPARING" | "PRODUCT_READY" }`.
+- 출고 일괄 완료: `PATCH /api/v1/wholesale/shipments/status`, body `{ "shipments": [{ "shipmentSeq": number, "deliveryCompanyCode": string, "trackingNumber": string }], "status": "SHIPPED" }`.
+- 일괄 응답은 HTTP `200`과 `{ succeeded: T[], failed: { seq: number, code: string, message: string }[] }` 구조를 사용해 부분 성공을 명확히 구분한다. 전체 요청 형식이 잘못된 경우만 `400`을 반환한다.
+- 택배사 선택 응답에 nullable `trackingUrlTemplate`을 추가한다. 프론트가 택배사별 외부 URL을 하드코딩하지 않도록 한다.
+- 피킹리스트·포장명세서에 필요한 주문 snapshot 필드 범위를 확정한다. 서버 PDF를 제공한다면 다운로드 경로와 파일명을 함께 확정한다.
+
+### API-019-B 안전재고·재고 원장
+
+- 재고 목록에 선택 query `wholesaleStoreSeq`, `keyword`, `stockStatus=OUT_OF_STOCK|LOW_STOCK|HAS_RESERVED`를 추가한다.
+- 재고 응답에 `safetyStockQuantity: number`와 계산 상태 `stockStatus`를 추가한다.
+- 안전재고 변경: `PATCH /api/v1/wholesale/inventory/{inventorySeq}/safety-stock`, body `{ "quantity": number }`.
+- 재고 원장: `GET /api/v1/wholesale/inventory/{inventorySeq}/ledger?page=&size=&type=&from=&to=`. 필수 필드는 `seq`, `inventorySeq`, `type`, `quantityDelta`, `beforeQuantity`, `afterQuantity`, nullable `referenceType`, nullable `referenceSeq`, nullable `reason`, `createdAt`이다.
+- 수동 조정: `POST /api/v1/wholesale/inventory/{inventorySeq}/adjustments`, body `{ "quantityDelta": number, "reason": string }`. 서버가 현재 수량을 잠금·재검증해 결과 수량을 반환한다.
+- 현재 필터 전체 CSV 다운로드 API와 최대 다운로드 건수, UTF-8 BOM 여부를 확정한다.
+
+### API-019-C 대시보드 상세 통계
+
+- `GET /api/v1/wholesale/management/dashboard?wholesaleStoreSeq=&from=&to=`로 확장한다.
+- 기존 필드를 유지하고 `new_order_count`, `preparing_item_count`, `pending_shipment_count`, `order_amount`, `order_count`, `sold_quantity`, 비교 기간 증감률, 상위 상품 5건, 상위 거래처 5건, 최근 주문·클레임을 추가한다.
+- 금액은 정수 원 단위, 증감률은 nullable 숫자로 정의한다. 이전 기간 분모가 0이면 `null`을 반환한다.
+
+### API-019-D 정산 상세·정산서
+
+- 정산 목록에 `wholesaleStoreSeq`, `status`, `periodFrom`, `periodTo` query와 페이지 응답을 적용한다.
+- `GET /api/v1/wholesale/management/settlements/{settlementSeq}`에 포함 주문, 총 거래액, 수수료, 취소·반품 공제, 기타 조정, 지급 예정액과 상태 이력을 반환한다.
+- `GET /api/v1/wholesale/management/settlements/{settlementSeq}/statement`의 PDF 다운로드 계약, 파일명과 오류 응답을 확정한다.
+- 실제 지급·PG 환불·세금계산서 처리는 별도 계약으로 분리한다.
+
+### API-019-E 상품 이미지·일괄 작업
+
+- 상품 이미지 업로드/삭제 API, 허용 MIME·크기·개수, 임시 업로드 만료와 고아 파일 정리 정책을 확정한다.
+- 상품 복제 API는 이미지 참조 복제 여부와 신규 상품 초기 상태를 확정한다.
+- 상품 일괄 상태 변경과 SKU 가격·최소 주문 수량 일괄 변경은 부분 성공 구조를 사용한다.
+- 파일 업로드 API를 제외한 JSON 요청은 기존 `Content-Type: application/json`을 유지한다.
+
+### API-019-F 클레임·거래처 상세
+
+- 클레임 상세에 증빙 파일, 처리 사유, 회수 택배사·송장, 재고 복구 여부, 환불 상태를 추가한다.
+- 상태 변경 요청에 필요한 사유 필수 조건과 `APPROVED → COMPLETED` 시 재고 복구 시점을 확정한다.
+- 거래처 목록에 keyword·정렬·페이지 query를 추가하고 거래처 상세 주문 목록과 내부 메모·등급 API를 분리한다.
+- 거래처별 가격 정책과 신용 한도는 별도 업무 승인 전 API-019 범위에 포함하지 않는다.
+
+프론트 상세 화면, 단계별 구현 순서와 완료 조건은 `docs/COMMERCE_WholesaleAdminEnhancement_001_frontend-development-plan.html`을 따른다. 계약 확정 전에는 운영 요청 경로를 추측해 호출하지 않고 mock 또는 비활성 UI로만 개발한다.
 
 ## API-012 서비스 관리자 전체 문의 관리 API
 
