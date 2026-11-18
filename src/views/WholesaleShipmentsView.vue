@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWholesaleFulfillmentStore } from '../stores/wholesaleFulfillment'
-import type { ShipmentStatus } from '../types/wholesaleFulfillment'
+import type { Shipment, ShipmentStatus } from '../types/wholesaleFulfillment'
 import { formatDateTime } from '../utils/dateTime'
 import PageControls from '../components/PageControls.vue'
 
@@ -13,6 +13,7 @@ const wholesaleStoreSeq = ref<number | null>(null)
 const status = ref('')
 const selectedShipmentSeqs = ref<number[]>([])
 const bulkFeedback = ref('')
+const activeShipmentSeq = ref<number | null>(null)
 const drafts = reactive<
   Record<number, { status: ShipmentStatus; deliveryCompanyCode: string; trackingNumber: string }>
 >({})
@@ -21,6 +22,19 @@ const labels: Record<ShipmentStatus, string> = {
   SHIPMENT_PREPARING: '출고 준비중',
   SHIPPED: '출고 완료',
 }
+const activeShipment = computed(
+  () =>
+    shipments.value.find((shipment) => shipment.shipmentSeq === activeShipmentSeq.value) ?? null,
+)
+const itemSummary = (shipment: Shipment) => {
+  const first = shipment.items[0]
+  if (!first) return '품목 없음'
+  return shipment.items.length === 1
+    ? first.productName
+    : `${first.productName} 외 ${shipment.items.length - 1}건`
+}
+const quantitySummary = (shipment: Shipment) =>
+  `${shipment.items.reduce((sum, item) => sum + item.shipmentQuantity, 0)} / ${shipment.items.reduce((sum, item) => sum + item.orderedQuantity, 0)}개`
 watch(
   shipments,
   (values) => {
@@ -61,7 +75,7 @@ async function saveStatus(shipmentSeq: number) {
   await store
     .updateShipmentStatus(
       shipmentSeq,
-      draft.status,
+      'SHIPPED',
       draft.deliveryCompanyCode.trim() || null,
       draft.trackingNumber.trim() || null,
     )
@@ -76,10 +90,7 @@ const shipmentSaveDisabled = (shipmentSeq: number, currentStatus: ShipmentStatus
     pendingKey.value === `shipment-status-${shipmentSeq}`
   )
     return true
-  return (
-    draft.status === 'SHIPPED' &&
-    (!draft.deliveryCompanyCode.trim() || !draft.trackingNumber.trim())
-  )
+  return !draft.deliveryCompanyCode.trim() || !draft.trackingNumber.trim()
 }
 const isKnownDeliveryCompany = (code: string) =>
   deliveryCompanies.value.some((company) => company.code === code)
@@ -131,6 +142,12 @@ const saveQuantity = (shipmentSeq: number, itemSeq: number) =>
   store
     .updateShipmentQuantity(shipmentSeq, itemSeq, quantities[itemSeq] ?? 1)
     .catch(() => undefined)
+const openItems = (shipmentSeq: number) => {
+  activeShipmentSeq.value = shipmentSeq
+}
+const closeItems = () => {
+  activeShipmentSeq.value = null
+}
 onMounted(async () => {
   await store
     .fetchStores()
@@ -194,161 +211,112 @@ onMounted(async () => {
       {{ error }} <button type="button" @click="load">다시 시도</button>
     </p>
     <div v-if="loading" class="admin-empty fulfillment-loading">출고 목록을 불러오는 중입니다.</div>
-    <section v-else class="fulfillment-order-list">
-      <article
-        v-for="shipment in shipments"
-        :key="shipment.shipmentSeq"
-        class="fulfillment-order-card shipment-order-card"
-      >
-        <header>
-          <div>
-            <label class="fulfillment-select-row"
-              ><input
-                v-model="selectedShipmentSeqs"
-                type="checkbox"
-                :value="shipment.shipmentSeq"
-                :disabled="shipment.status === 'SHIPPED'"
-              /><span class="sr-only">출고 {{ shipment.shipmentSeq }} 선택</span></label
-            ><span>{{ shipment.orderNo }}</span
-            ><strong>SHIPMENT #{{ shipment.shipmentSeq }}</strong>
-          </div>
-          <dl>
-            <div>
-              <dt>도매 매장</dt>
-              <dd>{{ shipment.wholesaleStoreName ?? `#${shipment.wholesaleStoreSeq}` }}</dd>
-            </div>
-            <div>
-              <dt>출고 상태</dt>
-              <dd>
+    <section v-else class="shipment-list-panel">
+      <div class="admin-table-scroll">
+        <table class="shipment-list-table">
+          <thead>
+            <tr>
+              <th>선택</th>
+              <th>출고 / 주문</th>
+              <th>도매 매장</th>
+              <th>상품</th>
+              <th>수량</th>
+              <th>상태</th>
+              <th>택배사</th>
+              <th>송장번호</th>
+              <th>출고일</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="shipment in shipments" :key="shipment.shipmentSeq">
+              <td>
+                <input
+                  v-model="selectedShipmentSeqs"
+                  type="checkbox"
+                  :value="shipment.shipmentSeq"
+                  :disabled="shipment.status === 'SHIPPED'"
+                  :aria-label="`출고 ${shipment.shipmentSeq} 선택`"
+                />
+              </td>
+              <td>
+                <strong>#{{ shipment.shipmentSeq }}</strong>
+                <small>{{ shipment.orderNo }}</small>
+              </td>
+              <td>{{ shipment.wholesaleStoreName ?? `#${shipment.wholesaleStoreSeq}` }}</td>
+              <td>
+                <button
+                  class="shipment-product-button"
+                  type="button"
+                  @click="openItems(shipment.shipmentSeq)"
+                >
+                  {{ itemSummary(shipment) }}
+                </button>
+              </td>
+              <td>{{ quantitySummary(shipment) }}</td>
+              <td>
                 <i class="admin-status">{{ labels[shipment.status] }}</i>
-              </dd>
-            </div>
-            <div>
-              <dt>출고일</dt>
-              <dd>{{ formatDateTime(shipment.shippedAt) }}</dd>
-            </div>
-            <div v-if="trackingUrl(shipment.deliveryCompanyCode, shipment.trackingNumber)">
-              <dt>배송조회</dt>
-              <dd>
+              </td>
+              <td>
+                <select
+                  v-if="drafts[shipment.shipmentSeq]"
+                  v-model="drafts[shipment.shipmentSeq]!.deliveryCompanyCode"
+                  :disabled="shipment.status === 'SHIPPED'"
+                  :aria-label="`출고 ${shipment.shipmentSeq} 택배사`"
+                >
+                  <option value="">택배사 선택</option>
+                  <option
+                    v-if="
+                      drafts[shipment.shipmentSeq]!.deliveryCompanyCode &&
+                      !isKnownDeliveryCompany(drafts[shipment.shipmentSeq]!.deliveryCompanyCode)
+                    "
+                    :value="drafts[shipment.shipmentSeq]!.deliveryCompanyCode"
+                  >
+                    {{ drafts[shipment.shipmentSeq]!.deliveryCompanyCode }} (기존 코드)
+                  </option>
+                  <option
+                    v-for="company in deliveryCompanies"
+                    :key="company.code"
+                    :value="company.code"
+                  >
+                    {{ company.name }}
+                  </option>
+                </select>
+              </td>
+              <td>
+                <input
+                  v-if="drafts[shipment.shipmentSeq]"
+                  v-model="drafts[shipment.shipmentSeq]!.trackingNumber"
+                  :disabled="shipment.status === 'SHIPPED'"
+                  :aria-label="`출고 ${shipment.shipmentSeq} 송장번호`"
+                  placeholder="송장번호"
+                />
                 <a
+                  v-if="trackingUrl(shipment.deliveryCompanyCode, shipment.trackingNumber)"
                   :href="trackingUrl(shipment.deliveryCompanyCode, shipment.trackingNumber)!"
                   target="_blank"
                   rel="noopener noreferrer"
-                  >송장 조회</a
+                  >배송조회</a
                 >
-              </dd>
-            </div>
-          </dl>
-        </header>
-
-        <div v-if="drafts[shipment.shipmentSeq]" class="shipment-fields shipment-order-fields">
-          <label
-            ><span>출고 상태</span
-            ><select
-              v-model="drafts[shipment.shipmentSeq]!.status"
-              :disabled="shipment.status === 'SHIPPED'"
-            >
-              <option value="SHIPMENT_PREPARING">출고 준비중</option>
-              <option value="SHIPPED">출고 완료</option>
-            </select></label
-          >
-          <label
-            ><span>택배사</span
-            ><select
-              v-model="drafts[shipment.shipmentSeq]!.deliveryCompanyCode"
-              :disabled="shipment.status === 'SHIPPED'"
-            >
-              <option value="">택배사 선택</option>
-              <option
-                v-if="
-                  drafts[shipment.shipmentSeq]!.deliveryCompanyCode &&
-                  !isKnownDeliveryCompany(drafts[shipment.shipmentSeq]!.deliveryCompanyCode)
-                "
-                :value="drafts[shipment.shipmentSeq]!.deliveryCompanyCode"
-              >
-                {{ drafts[shipment.shipmentSeq]!.deliveryCompanyCode }} (기존 코드)
-              </option>
-              <option
-                v-for="company in deliveryCompanies"
-                :key="company.code"
-                :value="company.code"
-              >
-                {{ company.name }} ({{ company.code }})
-              </option>
-            </select></label
-          >
-          <label
-            ><span>송장번호</span
-            ><input
-              v-model="drafts[shipment.shipmentSeq]!.trackingNumber"
-              :disabled="shipment.status === 'SHIPPED'"
-          /></label>
-          <button
-            type="button"
-            :disabled="shipmentSaveDisabled(shipment.shipmentSeq, shipment.status)"
-            @click="saveStatus(shipment.shipmentSeq)"
-          >
-            출고 정보 저장
-          </button>
-        </div>
-
-        <div class="admin-table-scroll">
-          <table class="fulfillment-items-table shipment-items-table">
-            <thead>
-              <tr>
-                <th>상품</th>
-                <th>SKU</th>
-                <th>옵션</th>
-                <th>Product ID</th>
-                <th>Variant ID</th>
-                <th>주문 수량</th>
-                <th>출고 수량</th>
-                <th>관리</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in shipment.items" :key="item.shipmentItemSeq">
-                <td>
-                  <strong>{{ item.productName }}</strong
-                  ><small>Order Item #{{ item.orderItemSeq }}</small>
-                </td>
-                <td>
-                  <strong>{{ item.sku || '-' }}</strong>
-                </td>
-                <td>
-                  {{ [item.color, item.size].filter(Boolean).join(' / ') || '-' }}
-                </td>
-                <td>#{{ item.productSeq }}</td>
-                <td>#{{ item.variantSeq }}</td>
-                <td>{{ item.orderedQuantity }}개</td>
-                <td>
-                  <input
-                    v-model.number="quantities[item.shipmentItemSeq]"
-                    class="shipment-quantity-input"
-                    type="number"
-                    min="1"
-                    :max="item.orderedQuantity"
-                    :disabled="shipment.status !== 'SHIPMENT_PREPARING'"
-                  />
-                </td>
-                <td>
+              </td>
+              <td>{{ formatDateTime(shipment.shippedAt) }}</td>
+              <td>
+                <div class="shipment-row-actions">
+                  <button type="button" @click="openItems(shipment.shipmentSeq)">품목</button>
                   <button
-                    class="shipment-quantity-button"
+                    v-if="drafts[shipment.shipmentSeq]"
                     type="button"
-                    :disabled="
-                      shipment.status !== 'SHIPMENT_PREPARING' ||
-                      pendingKey === `shipment-item-${item.shipmentItemSeq}`
-                    "
-                    @click="saveQuantity(shipment.shipmentSeq, item.shipmentItemSeq)"
+                    :disabled="shipmentSaveDisabled(shipment.shipmentSeq, shipment.status)"
+                    @click="saveStatus(shipment.shipmentSeq)"
                   >
-                    수량 저장
+                    출고 완료
                   </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </article>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <div v-if="!shipments.length" class="admin-empty fulfillment-loading">
         조건에 해당하는 출고가 없습니다.
       </div>
@@ -360,5 +328,70 @@ onMounted(async () => {
         @change="load"
       />
     </section>
+
+    <div v-if="activeShipment" class="admin-modal-backdrop" @click.self="closeItems">
+      <section
+        class="admin-product-modal shipment-items-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shipment-items-title"
+      >
+        <header class="admin-modal-heading">
+          <div>
+            <p>SHIPMENT ITEMS</p>
+            <h2 id="shipment-items-title">출고 #{{ activeShipment.shipmentSeq }} 품목 관리</h2>
+          </div>
+          <button type="button" aria-label="품목 관리 닫기" @click="closeItems">×</button>
+        </header>
+        <div class="admin-table-scroll">
+          <table class="fulfillment-items-table shipment-items-table">
+            <thead>
+              <tr>
+                <th>상품</th>
+                <th>SKU</th>
+                <th>옵션</th>
+                <th>주문 수량</th>
+                <th>출고 수량</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in activeShipment.items" :key="item.shipmentItemSeq">
+                <td>
+                  <strong>{{ item.productName }}</strong>
+                  <small>Product #{{ item.productSeq }} · Variant #{{ item.variantSeq }}</small>
+                </td>
+                <td>{{ item.sku || '-' }}</td>
+                <td>{{ [item.color, item.size].filter(Boolean).join(' / ') || '-' }}</td>
+                <td>{{ item.orderedQuantity }}개</td>
+                <td>
+                  <input
+                    v-model.number="quantities[item.shipmentItemSeq]"
+                    class="shipment-quantity-input"
+                    type="number"
+                    min="1"
+                    :max="item.orderedQuantity"
+                    :disabled="activeShipment.status !== 'SHIPMENT_PREPARING'"
+                  />
+                </td>
+                <td>
+                  <button
+                    class="shipment-quantity-button"
+                    type="button"
+                    :disabled="
+                      activeShipment.status !== 'SHIPMENT_PREPARING' ||
+                      pendingKey === `shipment-item-${item.shipmentItemSeq}`
+                    "
+                    @click="saveQuantity(activeShipment.shipmentSeq, item.shipmentItemSeq)"
+                  >
+                    수량 저장
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </main>
 </template>
